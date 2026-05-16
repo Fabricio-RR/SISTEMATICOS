@@ -139,7 +139,6 @@ Actualizacion:
 ## 12) Flujo de aprobaciones
 
 - Todas las altas y cambios sensibles pasan por cola de aprobacion.
-- Admin ve diff de cambios y deja comentario.
 - Estado final: aprobado o rechazado.
 
 ## 13) Reglas y formatos deportivos
