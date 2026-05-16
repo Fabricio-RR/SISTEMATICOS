@@ -31,11 +31,9 @@ Roles base:
 - Institucion: gestiona equipos y jugadores propios, solicita inscripciones.
 - Arbitro: actualiza resultados solo en partidos asignados.
 - Mesa/Staff: apoyo operativo en eventos, resultados y horarios.
-- Publico: solo lectura, sin login.
 
 Reglas:
 
-- Roles base con permisos editables.
 - Se pueden crear roles nuevos con permisos personalizados.
 - 2FA obligatorio (TOTP + respaldo por correo) para Admin y Arbitro.
 
