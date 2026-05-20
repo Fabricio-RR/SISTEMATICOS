@@ -1,0 +1,209 @@
+
+<style>
+#erd { padding: 1rem 0; }
+#erd svg { width: 100%; height: auto; }
+#erd svg .er { font-family: "Anthropic Sans", sans-serif; }
+#erd svg rect.er { rx: 8; }
+</style>
+<div id="erd"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '12px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#888780' : '#5f5e5a',
+    textColor: dark ? '#c2c0b6' : '#2c2c2a',
+    primaryColor: dark ? '#1e1e1c' : '#ffffff',
+    primaryBorderColor: dark ? '#444441' : '#b4b2a9',
+    primaryTextColor: dark ? '#c2c0b6' : '#2c2c2a',
+    secondaryColor: dark ? '#2c2c2a' : '#f1efe8',
+    tertiaryColor: dark ? '#2c2c2a' : '#f1efe8',
+    edgeLabelBackground: dark ? '#1a1a18' : '#ffffff',
+    attributeBackgroundColorEven: dark ? '#242422' : '#fafaf8',
+    attributeBackgroundColorOdd: dark ? '#1e1e1c' : '#ffffff',
+    background: dark ? '#1a1a18' : '#ffffff',
+    mainBkg: dark ? '#1e1e1c' : '#ffffff',
+    nodeBorder: dark ? '#444441' : '#b4b2a9',
+    clusterBkg: dark ? '#1e1e1c' : '#ffffff',
+    titleColor: dark ? '#c2c0b6' : '#2c2c2a',
+  },
+});
+const diagram = `erDiagram
+  instituciones {
+    int id PK
+    string nombre
+    string nombre_corto
+    string ciudad
+    string estado
+    string imagen_url
+  }
+  usuarios {
+    int id PK
+    int institucion_id FK
+    string nombres
+    string apellidos
+    string correo
+    string contrasena_hash
+    string rol
+    bool esta_activo
+  }
+  deportes {
+    int id PK
+    string nombre
+    string tipo_competidor
+    bool esta_activo
+  }
+  club_equipo {
+    int id PK
+    int institucion_id FK
+    int deporte_id FK
+    string nombre_equipo
+    string estado
+    int posicion_tabla
+    int puntos
+    int partidos_jugados
+    int partidos_ganados
+    int partidos_perdidos
+  }
+  atleta_jugador {
+    int id PK
+    int club_equipo_id FK
+    string nombre_completo
+    string numero_camiseta
+    string posicion_rol
+    string documento_identidad
+    int goles_anotados
+    int tarjetas_amarillas
+    int tarjetas_rojas
+    string estado
+  }
+  torneos {
+    int id PK
+    int deporte_id FK
+    string nombre
+    string formato
+    string temporada
+    string estado
+  }
+  grupos {
+    int id PK
+    int torneo_id FK
+    string nombre_grupo
+    int orden
+  }
+  inscripciones {
+    int id PK
+    int torneo_id FK
+    int club_equipo_id FK
+    int grupo_id FK
+    int numero_seeding
+    string estado
+  }
+  sedes {
+    int id PK
+    string nombre_sede
+    string ciudad
+    int capacidad
+    bool esta_activo
+  }
+  fixture {
+    int id PK
+    int torneo_id FK
+    int jornada
+    string nombre_fase
+    datetime fecha_generacion
+    string estado
+  }
+  partidos {
+    int id PK
+    int fixture_id FK
+    int inscripcion_local_id FK
+    int inscripcion_visitante_id FK
+    int grupo_id FK
+    int sede_id FK
+    int arbitro_id FK
+    string ronda
+    datetime fecha_hora
+    int resultado_local
+    int resultado_visitante
+    string estado
+  }
+  eventos_partido {
+    int id PK
+    int partido_id FK
+    int atleta_jugador_id FK
+    string tipo_evento
+    int minuto
+    string descripcion
+  }
+  auditoria {
+    int id PK
+    int usuario_id FK
+    string tabla_afectada
+    string accion
+    string valor_anterior
+    string valor_nuevo
+    datetime creado_en
+  }
+  noticias {
+    int id PK
+    string titulo
+    string contenido
+    string imagen_url
+    bool esta_publicado
+    datetime fecha_publicacion
+  }
+
+  instituciones ||--o{ club_equipo : "registra"
+  instituciones ||--o{ usuarios : "tiene"
+  deportes ||--o{ club_equipo : "categoriza"
+  deportes ||--o{ torneos : "define"
+  club_equipo ||--o{ atleta_jugador : "compone"
+  club_equipo ||--o{ inscripciones : "participa"
+  torneos ||--o{ grupos : "organiza"
+  torneos ||--o{ inscripciones : "incluye"
+  torneos ||--o{ fixture : "genera"
+  grupos ||--o{ inscripciones : "clasifica"
+  grupos ||--o{ partidos : "contiene"
+  fixture ||--o{ partidos : "programa"
+  inscripciones ||--o{ partidos : "juega_local"
+  inscripciones ||--o{ partidos : "juega_visitante"
+  sedes ||--o{ partidos : "aloja"
+  usuarios ||--o{ partidos : "arbitra"
+  usuarios ||--o{ auditoria : "genera"
+  partidos ||--o{ eventos_partido : "registra"
+  atleta_jugador ||--o{ eventos_partido : "protagoniza"
+`;
+const { svg } = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+document.querySelectorAll('#erd svg .row-rect-odd path, #erd svg .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
