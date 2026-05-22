@@ -1,0 +1,311 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import {
+  ClipboardList, CheckCircle, XCircle, Search,
+  RefreshCw, Trash2, Plus, Filter, AlertCircle,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import type { Inscripcion, Torneo, ClubEquipo, EstadoInscripcion, InscripcionCreate } from "@/types/api";
+
+type Tab = EstadoInscripcion;
+
+const LABEL: Record<EstadoInscripcion, string> = {
+  pendiente: "Pendiente",
+  aprobado: "Aprobado",
+  rechazado: "Rechazado",
+};
+
+const BADGE: Record<EstadoInscripcion, string> = {
+  pendiente: "bg-amber-50 text-amber-700",
+  aprobado: "bg-green-50 text-green-700",
+  rechazado: "bg-red-50 text-red-600",
+};
+
+export default function InscripcionesPage() {
+  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
+  const [torneos, setTorneos] = useState<Torneo[]>([]);
+  const [equipos, setEquipos] = useState<ClubEquipo[]>([]);
+  const [tab, setTab] = useState<Tab>("pendiente");
+  const [torneoFiltro, setTorneoFiltro] = useState<number | undefined>();
+  const [busqueda, setBusqueda] = useState("");
+  const [cargando, setCargando] = useState(true);
+  const [accion, setAccion] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState<InscripcionCreate>({ torneo_id: 0, club_equipo_id: 0 });
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError("");
+    try {
+      const [insc, torn, eq] = await Promise.all([
+        api.getInscripciones(torneoFiltro),
+        api.getTorneos(),
+        api.getEquipos(),
+      ]);
+      setInscripciones(insc);
+      setTorneos(torn);
+      setEquipos(eq);
+    } catch {
+      setError("No se pudo cargar las inscripciones.");
+    } finally {
+      setCargando(false);
+    }
+  }, [torneoFiltro]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  async function aprobar(id: number) {
+    setAccion(id);
+    try { await api.aprobarInscripcion(id); await cargar(); }
+    finally { setAccion(null); }
+  }
+
+  async function rechazar(id: number) {
+    setAccion(id);
+    try { await api.rechazarInscripcion(id); await cargar(); }
+    finally { setAccion(null); }
+  }
+
+  async function eliminar(id: number) {
+    if (!confirm("¿Eliminar esta inscripción?")) return;
+    setAccion(id);
+    try { await api.deleteInscripcion(id); await cargar(); }
+    finally { setAccion(null); }
+  }
+
+  async function crear() {
+    if (!form.torneo_id || !form.club_equipo_id) return;
+    try {
+      await api.createInscripcion(form);
+      setShowModal(false);
+      setForm({ torneo_id: 0, club_equipo_id: 0 });
+      await cargar();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al inscribir");
+    }
+  }
+
+  const counts: Record<Tab, number> = {
+    pendiente: inscripciones.filter((i) => i.estado === "pendiente").length,
+    aprobado: inscripciones.filter((i) => i.estado === "aprobado").length,
+    rechazado: inscripciones.filter((i) => i.estado === "rechazado").length,
+  };
+
+  const lista = inscripciones
+    .filter((i) => i.estado === tab)
+    .filter((i) => {
+      const texto = `${i.club_equipo?.nombre_equipo ?? ""} ${i.torneo?.nombre ?? ""}`.toLowerCase();
+      return texto.includes(busqueda.toLowerCase());
+    });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
+          <h1 className="text-2xl font-bold text-gray-900 mt-1">Inscripciones</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Gestión de equipos inscritos por torneo.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={cargar}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Actualizar
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva inscripción
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Tabs de estado */}
+      <div className="grid grid-cols-3 gap-4">
+        {(["pendiente", "aprobado", "rechazado"] as Tab[]).map((estado) => (
+          <button
+            key={estado}
+            onClick={() => setTab(estado)}
+            className={`p-4 rounded-xl border text-left transition-all ${
+              tab === estado
+                ? "border-red-200 bg-red-50"
+                : "border-gray-100 bg-white hover:border-gray-200"
+            }`}
+          >
+            <p className="text-2xl font-bold text-gray-900">{counts[estado]}</p>
+            <p className="text-sm text-gray-500 mt-1">{LABEL[estado]}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar equipo o torneo..."
+            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+        </div>
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <select
+            value={torneoFiltro ?? ""}
+            onChange={(e) => setTorneoFiltro(e.target.value ? Number(e.target.value) : undefined)}
+            className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            <option value="">Todos los torneos</option>
+            {torneos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+        {cargando ? (
+          <div className="flex items-center justify-center h-40 text-sm text-gray-400">Cargando...</div>
+        ) : lista.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-40 text-gray-300">
+            <ClipboardList className="w-8 h-8 mb-2" strokeWidth={1.5} />
+            <p className="text-sm text-gray-400">Sin inscripciones {LABEL[tab].toLowerCase()}s</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Equipo</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Torneo</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Seeding</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Estado</th>
+                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {lista.map((insc) => (
+                <tr key={insc.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                    {insc.club_equipo?.nombre_equipo ?? `Equipo #${insc.club_equipo_id}`}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {insc.torneo?.nombre ?? `Torneo #${insc.torneo_id}`}
+                  </td>
+                  <td className="px-4 py-4 text-center text-sm text-gray-500">{insc.numero_seeding ?? "—"}</td>
+                  <td className="px-4 py-4 text-center">
+                    <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${BADGE[insc.estado]}`}>
+                      {LABEL[insc.estado]}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex justify-end gap-1.5">
+                      {insc.estado === "pendiente" && (
+                        <>
+                          <button
+                            onClick={() => aprobar(insc.id)}
+                            disabled={accion === insc.id}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
+                            title="Aprobar"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => rechazar(insc.id)}
+                            disabled={accion === insc.id}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                            title="Rechazar"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => eliminar(insc.id)}
+                        disabled={accion === insc.id}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-5">Nueva inscripción</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Torneo</label>
+                <select
+                  value={form.torneo_id || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, torneo_id: Number(e.target.value) }))}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Seleccionar torneo</option>
+                  {torneos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Equipo</label>
+                <select
+                  value={form.club_equipo_id || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, club_equipo_id: Number(e.target.value) }))}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Seleccionar equipo</option>
+                  {equipos.map((e) => <option key={e.id} value={e.id}>{e.nombre_equipo}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Seeding (opcional)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.numero_seeding ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, numero_seeding: e.target.value ? Number(e.target.value) : undefined }))}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={crear}
+                disabled={!form.torneo_id || !form.club_equipo_id}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+              >
+                Inscribir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
