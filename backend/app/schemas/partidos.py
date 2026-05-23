@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
@@ -27,12 +27,12 @@ class PartidoUpdate(BaseModel):
     fecha_hora: datetime | None = None
     ronda: str | None = None
     estado: str | None = None
+    motivo_reprogramacion: str | None = None
 
 
 class ResultadoUpdate(BaseModel):
-    resultado_local: int
-    resultado_visitante: int
-    estado: str = "finalizado"
+    resultado_local: int = Field(..., ge=0, le=99)
+    resultado_visitante: int = Field(..., ge=0, le=99)
 
 
 class PartidoOut(BaseModel):
@@ -48,9 +48,13 @@ class PartidoOut(BaseModel):
     resultado_local: int | None
     resultado_visitante: int | None
     estado: str
+    es_walkover: bool = False
+    motivo_reprogramacion: str | None = None
+    reprogramado_en: datetime | None = None
     local_nombre: str = ""
     visitante_nombre: str = ""
     torneo_nombre: str = ""
+    sede_nombre: str = ""
     jornada: int = 0
 
     model_config = {"from_attributes": True}

@@ -13,6 +13,7 @@ from app.schemas.usuarios import UsuarioCreate, UsuarioOut
 from app.core.security import verify_password, hash_password, create_access_token
 from app.core.deps import get_current_user, require_admin
 from app.core.limiter import limiter
+from app.core.categorias import pais_por_categoria
 
 router = APIRouter()
 
@@ -81,12 +82,23 @@ def solicitar_acceso(data: SolicitudAccesoRequest, db: Session = Depends(get_db)
     if db.query(Usuario).filter(Usuario.correo == data.correo).first():
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
+    # Generar nombre_corto único de hasta 6 caracteres
+    base = data.nombre_institucion[:6].upper()
+    nombre_corto = base
+    suffix = 1
+    while db.query(Institucion).filter(Institucion.nombre_corto == nombre_corto).first():
+        nombre_corto = f"{base[:5]}{suffix}"
+        suffix += 1
+
     # Crear la institución
     institucion = Institucion(
         nombre=data.nombre_institucion,
-        nombre_corto=data.nombre_institucion[:6].upper(),
+        nombre_corto=nombre_corto,
         ciudad=data.ciudad,
         estado="pendiente",
+        contacto=data.contacto,
+        categoria=data.categoria,
+        pais_representativo=pais_por_categoria(data.categoria) if data.categoria else None,
     )
     db.add(institucion)
     db.flush()  # obtener el id sin hacer commit aún

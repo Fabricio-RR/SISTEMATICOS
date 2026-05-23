@@ -6,10 +6,15 @@ from app.models.fixture import Fixture
 from app.models.partidos import Partido
 from app.models.inscripciones import Inscripcion
 from app.models.torneos import Torneo
-from app.schemas.fixture import FixtureOut, GenerarFixtureRequest
+from app.schemas.fixture import FixtureOut, GenerarFixtureRequest, FaseEliminatoriaRequest, SiguienteFaseRequest
 from app.schemas.partidos import PartidoOut
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
+from app.services.competition import (
+    collect_winners,
+    elimination_phase_name_from_size,
+    next_elimination_phase_name,
+)
 
 router = APIRouter()
 
@@ -58,6 +63,16 @@ def generar(data: GenerarFixtureRequest, db: Session = Depends(get_db), _: Usuar
     torneo = db.query(Torneo).filter(Torneo.id == data.torneo_id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado != "en_sorteo":
+        raise HTTPException(
+            status_code=400,
+            detail=f"El fixture solo puede generarse cuando el torneo está en estado 'en_sorteo'. Estado actual: '{torneo.estado}'.",
+        )
+    if torneo.formato == "eliminacion_simple":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Los torneos de eliminación simple no usan fixture de liga. Usa la generación de fase eliminatoria.",
+        )
 
     inscripciones = db.query(Inscripcion).filter(
         Inscripcion.torneo_id == data.torneo_id,
@@ -106,6 +121,117 @@ def generar(data: GenerarFixtureRequest, db: Session = Depends(get_db), _: Usuar
 
     db.commit()
     return fixtures_creados
+
+
+@router.post("/fase-eliminatoria", response_model=FixtureOut, status_code=status.HTTP_201_CREATED)
+def generar_fase_eliminatoria(
+    data: FaseEliminatoriaRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
+    torneo = db.query(Torneo).filter(Torneo.id == data.torneo_id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado != "en_curso":
+        raise HTTPException(status_code=400, detail="La fase eliminatoria solo puede generarse con el torneo 'en_curso'")
+    if data.n_clasificados not in (2, 4, 8):
+        raise HTTPException(status_code=400, detail="n_clasificados debe ser 2, 4 u 8")
+    if db.query(Fixture).filter(
+        Fixture.torneo_id == data.torneo_id,
+        Fixture.nombre_fase.in_(("Cuartos de Final", "Semifinales", "Final")),
+    ).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La fase eliminatoria ya fue generada para este torneo",
+        )
+
+    inscripciones = (
+        db.query(Inscripcion)
+        .filter(Inscripcion.torneo_id == data.torneo_id, Inscripcion.estado == "aprobado")
+        .order_by(
+            Inscripcion.puntos.desc(),
+            Inscripcion.partidos_ganados.desc(),
+            Inscripcion.partidos_perdidos.asc(),
+        )
+        .limit(data.n_clasificados)
+        .all()
+    )
+    if len(inscripciones) < data.n_clasificados:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Se necesitan {data.n_clasificados} equipos aprobados, hay {len(inscripciones)}",
+        )
+
+    max_fix = db.query(Fixture).filter(Fixture.torneo_id == data.torneo_id).order_by(Fixture.jornada.desc()).first()
+    jornada = (max_fix.jornada + 1) if max_fix else 1
+
+    nombre_fase = elimination_phase_name_from_size(data.n_clasificados)
+    fix = Fixture(torneo_id=data.torneo_id, jornada=jornada, nombre_fase=nombre_fase)
+    db.add(fix)
+    db.flush()
+
+    n = len(inscripciones)
+    for i in range(n // 2):
+        db.add(Partido(
+            fixture_id=fix.id,
+            inscripcion_local_id=inscripciones[i].id,
+            inscripcion_visitante_id=inscripciones[n - 1 - i].id,
+            ronda=nombre_fase,
+        ))
+
+    db.commit()
+    db.refresh(fix)
+    return fix
+
+
+@router.post("/siguiente-fase", response_model=FixtureOut, status_code=status.HTTP_201_CREATED)
+def generar_siguiente_fase(
+    data: SiguienteFaseRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
+    fixture = db.query(Fixture).filter(
+        Fixture.id == data.fixture_id, Fixture.torneo_id == data.torneo_id
+    ).first()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture no encontrado")
+    if fixture.nombre_fase == "Final":
+        raise HTTPException(status_code=400, detail="La Final ya es la última fase")
+
+    partidos = db.query(Partido).filter(Partido.fixture_id == data.fixture_id).all()
+    if not partidos:
+        raise HTTPException(status_code=400, detail="Este fixture no tiene partidos")
+
+    ganadores = collect_winners(partidos)
+    nombre_siguiente = next_elimination_phase_name(fixture.nombre_fase)
+    if db.query(Fixture).filter(
+        Fixture.torneo_id == data.torneo_id,
+        Fixture.nombre_fase == nombre_siguiente,
+    ).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"La fase '{nombre_siguiente}' ya fue generada para este torneo",
+        )
+    next_fix = Fixture(
+        torneo_id=data.torneo_id,
+        jornada=fixture.jornada + 1,
+        nombre_fase=nombre_siguiente,
+    )
+    db.add(next_fix)
+    db.flush()
+
+    n = len(ganadores)
+    for i in range(n // 2):
+        db.add(Partido(
+            fixture_id=next_fix.id,
+            inscripcion_local_id=ganadores[i],
+            inscripcion_visitante_id=ganadores[n - 1 - i],
+            ronda=nombre_siguiente,
+        ))
+
+    db.commit()
+    db.refresh(next_fix)
+    return next_fix
 
 
 @router.delete("/{torneo_id}", status_code=status.HTTP_204_NO_CONTENT)

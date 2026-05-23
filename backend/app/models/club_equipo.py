@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, DateTime
+from sqlalchemy import String, Integer, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -7,6 +7,14 @@ from app.database import Base
 
 class ClubEquipo(Base):
     __tablename__ = "club_equipo"
+    __table_args__ = (
+        UniqueConstraint(
+            "institucion_id",
+            "deporte_id",
+            "nombre_equipo",
+            name="uq_equipo_inst_dep_nombre",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     institucion_id: Mapped[int] = mapped_column(Integer, ForeignKey("instituciones.id"))

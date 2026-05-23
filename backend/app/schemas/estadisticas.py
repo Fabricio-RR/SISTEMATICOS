@@ -22,3 +22,4 @@ class Goleador(BaseModel):
     goles: int
     tarjetas_amarillas: int
     tarjetas_rojas: int
+    etiqueta: str = "Goles"

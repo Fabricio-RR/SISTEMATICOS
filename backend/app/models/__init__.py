@@ -12,3 +12,4 @@ from app.models.partidos import Partido
 from app.models.eventos_partido import EventoPartido
 from app.models.auditoria import Auditoria
 from app.models.noticias import Noticia
+from app.models.notificaciones import Notificacion

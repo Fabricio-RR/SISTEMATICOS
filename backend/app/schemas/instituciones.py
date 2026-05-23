@@ -7,6 +7,9 @@ class InstitucionBase(BaseModel):
     ciudad: str
     estado: str = "activo"
     imagen_url: str | None = None
+    contacto: str | None = None
+    categoria: str | None = None
+    pais_representativo: str | None = None
 
 
 class InstitucionCreate(InstitucionBase):
@@ -19,6 +22,9 @@ class InstitucionUpdate(BaseModel):
     ciudad: str | None = None
     estado: str | None = None
     imagen_url: str | None = None
+    contacto: str | None = None
+    categoria: str | None = None
+    pais_representativo: str | None = None
 
 
 class InstitucionOut(InstitucionBase):

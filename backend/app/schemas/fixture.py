@@ -16,3 +16,13 @@ class FixtureOut(BaseModel):
 class GenerarFixtureRequest(BaseModel):
     torneo_id: int
     force: bool = False
+
+
+class FaseEliminatoriaRequest(BaseModel):
+    torneo_id: int
+    n_clasificados: int = 4  # 2, 4 u 8
+
+
+class SiguienteFaseRequest(BaseModel):
+    torneo_id: int
+    fixture_id: int

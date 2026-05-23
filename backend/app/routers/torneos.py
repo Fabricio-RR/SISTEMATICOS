@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.torneos import Torneo
-from app.schemas.torneos import TorneoCreate, TorneoOut
+from app.models.deportes import Deporte
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
+from app.schemas.torneos import TorneoCreate, TorneoOut, TRANSICIONES
+from app.services.competition import assert_transition_allowed
 
 router = APIRouter()
 
@@ -25,8 +27,41 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=TorneoOut, status_code=status.HTTP_201_CREATED)
 def create(data: TorneoCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    if not db.query(Deporte).filter(Deporte.id == data.deporte_id, Deporte.esta_activo == True).first():
+        raise HTTPException(status_code=404, detail="Deporte no encontrado o inactivo")
     torneo = Torneo(**data.model_dump())
     db.add(torneo)
+    db.commit()
+    db.refresh(torneo)
+    return torneo
+
+
+@router.patch("/{id}/avanzar", response_model=TorneoOut)
+def avanzar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    torneo = db.query(Torneo).filter(Torneo.id == id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    siguiente = TRANSICIONES.get(torneo.estado)
+    if not siguiente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El torneo está en estado '{torneo.estado}' y no puede avanzar.",
+        )
+    assert_transition_allowed(torneo, siguiente, db)
+    torneo.estado = siguiente
+    db.commit()
+    db.refresh(torneo)
+    return torneo
+
+
+@router.patch("/{id}/suspender", response_model=TorneoOut)
+def suspender(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    torneo = db.query(Torneo).filter(Torneo.id == id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado == "finalizado":
+        raise HTTPException(status_code=400, detail="No se puede suspender un torneo finalizado.")
+    torneo.estado = "suspendido"
     db.commit()
     db.refresh(torneo)
     return torneo
@@ -37,5 +72,10 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
     torneo = db.query(Torneo).filter(Torneo.id == id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado in ("en_curso", "finalizado"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar un torneo en curso o finalizado.",
+        )
     db.delete(torneo)
     db.commit()

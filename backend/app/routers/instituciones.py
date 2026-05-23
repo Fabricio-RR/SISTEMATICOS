@@ -6,6 +6,7 @@ from app.models.instituciones import Institucion
 from app.schemas.instituciones import InstitucionCreate, InstitucionUpdate, InstitucionOut
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
+from app.core.categorias import pais_por_categoria
 
 router = APIRouter()
 
@@ -25,7 +26,10 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=InstitucionOut, status_code=status.HTTP_201_CREATED)
 def create(data: InstitucionCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    inst = Institucion(**data.model_dump())
+    dump = data.model_dump()
+    if dump.get("categoria") and not dump.get("pais_representativo"):
+        dump["pais_representativo"] = pais_por_categoria(dump["categoria"])
+    inst = Institucion(**dump)
     db.add(inst)
     db.commit()
     db.refresh(inst)

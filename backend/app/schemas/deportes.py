@@ -5,6 +5,7 @@ class DeporteBase(BaseModel):
     nombre: str
     tipo_competidor: str = "equipo"
     esta_activo: bool = True
+    es_obligatorio: bool = False
 
 
 class DeporteCreate(DeporteBase):

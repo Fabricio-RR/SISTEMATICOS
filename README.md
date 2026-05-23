@@ -196,6 +196,24 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ---
 
+## Pruebas y regresión
+
+### Backend
+
+```bash
+cd backend
+
+# instalar dependencias de desarrollo
+venv/bin/pip install -r requirements-dev.txt
+
+# correr la suite de regresión
+venv/bin/python -m pytest tests
+```
+
+La matriz de escenarios cubiertos está en [DOCS/logic-regression-matrix.md](DOCS/logic-regression-matrix.md).
+
+---
+
 ## Base de datos — 14 tablas
 
 ```

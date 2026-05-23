@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
@@ -6,11 +7,13 @@ from app.database import get_db
 from app.models.partidos import Partido
 from app.models.fixture import Fixture
 from app.models.inscripciones import Inscripcion
-from app.models.club_equipo import ClubEquipo
+from app.models.torneos import Torneo
 from app.models.auditoria import Auditoria
+from app.models.notificaciones import Notificacion
 from app.schemas.partidos import PartidoUpdate, ResultadoUpdate, PartidoOut
-from app.core.deps import require_admin, get_current_user, require_admin_or_arbitro
+from app.core.deps import require_admin, require_admin_or_arbitro
 from app.models.usuarios import Usuario
+from app.services.competition import apply_result_change
 
 router = APIRouter()
 
@@ -39,6 +42,8 @@ def _build_out(p: Partido) -> PartidoOut:
         out.jornada = p.fixture.jornada
         if p.fixture.torneo:
             out.torneo_nombre = p.fixture.torneo.nombre
+    if p.sede:
+        out.sede_nombre = p.sede.nombre_sede
     return out
 
 
@@ -55,10 +60,17 @@ def _get_all_query(db: Session):
 
 
 @router.get("/", response_model=list[PartidoOut])
-def get_all(torneo_id: int | None = None, estado: str | None = None, db: Session = Depends(get_db)):
+def get_all(
+    torneo_id: int | None = None,
+    deporte_id: int | None = None,
+    estado: str | None = None,
+    db: Session = Depends(get_db),
+):
     q = _get_all_query(db)
     if torneo_id:
         q = q.join(Fixture).filter(Fixture.torneo_id == torneo_id)
+    elif deporte_id:
+        q = q.join(Fixture).join(Torneo, Fixture.torneo_id == Torneo.id).filter(Torneo.deporte_id == deporte_id)
     if estado:
         q = q.filter(Partido.estado == estado)
     return [_build_out(p) for p in q.all()]
@@ -74,71 +86,79 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{id}", response_model=PartidoOut)
 def update(id: int, data: PartidoUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    p = db.query(Partido).filter(Partido.id == id).first()
+    p = _load_partido(id, db)
     if not p:
         raise HTTPException(status_code=404, detail="Partido no encontrado")
-    for field, val in data.model_dump(exclude_none=True).items():
+    if p.estado == "finalizado" and data.estado is not None and data.estado != "finalizado":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede revertir el estado de un partido finalizado. Los puntos ya fueron contabilizados.",
+        )
+
+    es_reprogramacion = (
+        data.fecha_hora is not None
+        and data.motivo_reprogramacion
+        and p.fecha_hora != data.fecha_hora
+    )
+
+    payload = data.model_dump(exclude_none=True)
+    payload.pop("motivo_reprogramacion", None)
+    for field, val in payload.items():
         setattr(p, field, val)
+
+    if es_reprogramacion:
+        p.motivo_reprogramacion = data.motivo_reprogramacion
+        p.reprogramado_en = datetime.now(timezone.utc)
+        _crear_notificaciones_reprogramacion(p, data.motivo_reprogramacion, db)
+
     db.commit()
     return _build_out(_load_partido(id, db))
+
+
+def _crear_notificaciones_reprogramacion(p: Partido, motivo: str, db: Session) -> None:
+    instituciones: set[int] = set()
+    for insc in (p.local, p.visitante):
+        if insc and insc.club_equipo:
+            instituciones.add(insc.club_equipo.institucion_id)
+
+    local_nombre = p.local.club_equipo.nombre_equipo if p.local and p.local.club_equipo else "Local"
+    visit_nombre = p.visitante.club_equipo.nombre_equipo if p.visitante and p.visitante.club_equipo else "Visitante"
+    fecha_str = p.fecha_hora.strftime("%d/%m/%Y %H:%M") if p.fecha_hora else "por confirmar"
+
+    for inst_id in instituciones:
+        db.add(Notificacion(
+            institucion_id=inst_id,
+            partido_id=p.id,
+            titulo="Partido reprogramado",
+            contenido=f"{local_nombre} vs {visit_nombre} ha sido reprogramado para el {fecha_str}. Motivo: {motivo}",
+        ))
 
 
 @router.patch("/{id}/resultado", response_model=PartidoOut)
 def set_resultado(id: int, data: ResultadoUpdate, db: Session = Depends(get_db), current_user: Usuario = Depends(require_admin_or_arbitro)):
-    p = db.query(Partido).filter(Partido.id == id).first()
+    p = _load_partido(id, db)
     if not p:
         raise HTTPException(status_code=404, detail="Partido no encontrado")
 
-    if p.estado == "finalizado":
+    torneo = p.fixture.torneo if p.fixture else None
+    if torneo and torneo.estado not in ("en_curso", "finalizado"):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El partido ya está finalizado. Usa PATCH /{id} para corregir el estado primero.",
+            status_code=400,
+            detail=f"No se pueden registrar resultados. El torneo está en estado '{torneo.estado}'.",
         )
 
-    p.resultado_local = data.resultado_local
-    p.resultado_visitante = data.resultado_visitante
-    p.estado = data.estado
-
-    if data.estado == "finalizado":
-        _actualizar_tabla(p, db)
-        db.add(Auditoria(
-            usuario_id=current_user.id,
-            tabla_afectada="partidos",
-            accion="UPDATE",
-            valor_nuevo=json.dumps({"partido_id": p.id, "resultado_local": p.resultado_local, "resultado_visitante": p.resultado_visitante}),
-        ))
+    apply_result_change(
+        p,
+        data.resultado_local,
+        data.resultado_visitante,
+        torneo=torneo,
+    )
+    db.add(Auditoria(
+        usuario_id=current_user.id,
+        tabla_afectada="partidos",
+        accion="UPDATE",
+        valor_nuevo=json.dumps({"partido_id": p.id, "resultado_local": p.resultado_local, "resultado_visitante": p.resultado_visitante}),
+    ))
 
     db.commit()
     return _build_out(_load_partido(id, db))
-
-
-def _actualizar_tabla(partido: Partido, db: Session):
-    local = db.query(ClubEquipo).filter(
-        ClubEquipo.id == db.query(Inscripcion.club_equipo_id)
-        .filter(Inscripcion.id == partido.inscripcion_local_id)
-        .scalar_subquery()
-    ).first()
-    visitante = db.query(ClubEquipo).filter(
-        ClubEquipo.id == db.query(Inscripcion.club_equipo_id)
-        .filter(Inscripcion.id == partido.inscripcion_visitante_id)
-        .scalar_subquery()
-    ).first()
-
-    if not local or not visitante:
-        return
-
-    rl, rv = partido.resultado_local, partido.resultado_visitante
-    local.partidos_jugados += 1
-    visitante.partidos_jugados += 1
-
-    if rl > rv:
-        local.partidos_ganados += 1
-        local.puntos += 3
-        visitante.partidos_perdidos += 1
-    elif rv > rl:
-        visitante.partidos_ganados += 1
-        visitante.puntos += 3
-        local.partidos_perdidos += 1
-    else:
-        local.puntos += 1
-        visitante.puntos += 1

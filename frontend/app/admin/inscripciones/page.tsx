@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   ClipboardList, CheckCircle, XCircle, Search,
-  RefreshCw, Trash2, Plus, Filter, AlertCircle,
+  RefreshCw, Trash2, Plus, Filter, AlertCircle, LogOut,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Inscripcion, Torneo, ClubEquipo, EstadoInscripcion, InscripcionCreate } from "@/types/api";
@@ -13,12 +13,14 @@ const LABEL: Record<EstadoInscripcion, string> = {
   pendiente: "Pendiente",
   aprobado: "Aprobado",
   rechazado: "Rechazado",
+  retirado: "Retirado",
 };
 
 const BADGE: Record<EstadoInscripcion, string> = {
   pendiente: "bg-amber-50 text-amber-700",
   aprobado: "bg-green-50 text-green-700",
   rechazado: "bg-red-50 text-red-600",
+  retirado: "bg-gray-100 text-gray-500",
 };
 
 export default function InscripcionesPage() {
@@ -57,20 +59,34 @@ export default function InscripcionesPage() {
 
   async function aprobar(id: number) {
     setAccion(id);
+    setError("");
     try { await api.aprobarInscripcion(id); await cargar(); }
+    catch (e) { setError(e instanceof Error ? e.message : "No se pudo aprobar la inscripción."); }
     finally { setAccion(null); }
   }
 
   async function rechazar(id: number) {
     setAccion(id);
+    setError("");
     try { await api.rechazarInscripcion(id); await cargar(); }
+    catch (e) { setError(e instanceof Error ? e.message : "No se pudo rechazar la inscripción."); }
+    finally { setAccion(null); }
+  }
+
+  async function retirar(id: number) {
+    if (!confirm("¿Retirar este equipo del torneo? Los partidos pendientes se resolverán por W.O. (3-0).")) return;
+    setAccion(id);
+    try { await api.retirarInscripcion(id); await cargar(); }
+    catch (e) { alert(e instanceof Error ? e.message : "Error al retirar"); }
     finally { setAccion(null); }
   }
 
   async function eliminar(id: number) {
     if (!confirm("¿Eliminar esta inscripción?")) return;
     setAccion(id);
+    setError("");
     try { await api.deleteInscripcion(id); await cargar(); }
+    catch (e) { setError(e instanceof Error ? e.message : "No se pudo eliminar la inscripción."); }
     finally { setAccion(null); }
   }
 
@@ -86,10 +102,14 @@ export default function InscripcionesPage() {
     }
   }
 
+  const torneosAbiertos = torneos.filter((t) => t.estado === "inscripcion_abierta");
+  const equiposAprobados = equipos.filter((e) => e.estado === "aprobado");
+
   const counts: Record<Tab, number> = {
     pendiente: inscripciones.filter((i) => i.estado === "pendiente").length,
     aprobado: inscripciones.filter((i) => i.estado === "aprobado").length,
     rechazado: inscripciones.filter((i) => i.estado === "rechazado").length,
+    retirado: inscripciones.filter((i) => i.estado === "retirado").length,
   };
 
   const lista = inscripciones
@@ -134,8 +154,8 @@ export default function InscripcionesPage() {
       )}
 
       {/* Tabs de estado */}
-      <div className="grid grid-cols-3 gap-4">
-        {(["pendiente", "aprobado", "rechazado"] as Tab[]).map((estado) => (
+      <div className="grid grid-cols-4 gap-4">
+        {(["pendiente", "aprobado", "rechazado", "retirado"] as Tab[]).map((estado) => (
           <button
             key={estado}
             onClick={() => setTab(estado)}
@@ -232,6 +252,16 @@ export default function InscripcionesPage() {
                           </button>
                         </>
                       )}
+                      {insc.estado === "aprobado" && (
+                        <button
+                          onClick={() => retirar(insc.id)}
+                          disabled={accion === insc.id}
+                          className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition disabled:opacity-50"
+                          title="Retirar equipo (W.O.)"
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => eliminar(insc.id)}
                         disabled={accion === insc.id}
@@ -254,6 +284,12 @@ export default function InscripcionesPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-5">Nueva inscripción</h2>
+              {torneosAbiertos.length === 0 && (
+                <div className="mb-4 flex gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                No hay torneos con inscripción abierta. Crea un torneo o avanza su estado a Inscripción abierta.
+                </div>
+              )}
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Torneo</label>
@@ -263,7 +299,10 @@ export default function InscripcionesPage() {
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Seleccionar torneo</option>
-                  {torneos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                  {torneosAbiertos.length === 0 && (
+                    <option disabled value="">— No hay torneos con inscripción abierta —</option>
+                  )}
+                  {torneosAbiertos.map((t) => <option key={t.id} value={t.id}>{t.nombre} ({t.temporada})</option>)}
                 </select>
               </div>
               <div>
@@ -274,7 +313,10 @@ export default function InscripcionesPage() {
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Seleccionar equipo</option>
-                  {equipos.map((e) => <option key={e.id} value={e.id}>{e.nombre_equipo}</option>)}
+                  {equiposAprobados.length === 0 && (
+                    <option disabled value="">— No hay equipos aprobados —</option>
+                  )}
+                  {equiposAprobados.map((e) => <option key={e.id} value={e.id}>{e.nombre_equipo}</option>)}
                 </select>
               </div>
               <div>
@@ -297,7 +339,7 @@ export default function InscripcionesPage() {
               </button>
               <button
                 onClick={crear}
-                disabled={!form.torneo_id || !form.club_equipo_id}
+                disabled={!form.torneo_id || !form.club_equipo_id || torneosAbiertos.length === 0}
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
               >
                 Inscribir

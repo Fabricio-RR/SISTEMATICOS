@@ -1,24 +1,22 @@
 from pydantic import BaseModel
 
 
-class ClubEquipoBase(BaseModel):
+class ClubEquipoCreate(BaseModel):
     institucion_id: int
     deporte_id: int
     nombre_equipo: str
-    estado: str = "pendiente"
-
-
-class ClubEquipoCreate(ClubEquipoBase):
-    pass
 
 
 class ClubEquipoUpdate(BaseModel):
     nombre_equipo: str | None = None
-    estado: str | None = None
 
 
-class ClubEquipoOut(ClubEquipoBase):
+class ClubEquipoOut(BaseModel):
     id: int
+    institucion_id: int
+    deporte_id: int
+    nombre_equipo: str
+    estado: str
     posicion_tabla: int
     puntos: int
     partidos_jugados: int

@@ -1,0 +1,23 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/recovery/page": "app/recovery/page.js",
+  "/solicitar/page": "app/solicitar/page.js",
+  "/admin/atletas/page": "app/admin/atletas/page.js",
+  "/admin/deportes/page": "app/admin/deportes/page.js",
+  "/admin/inscripciones/page": "app/admin/inscripciones/page.js",
+  "/admin/equipos/page": "app/admin/equipos/page.js",
+  "/admin/encuentros/page": "app/admin/encuentros/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/instituciones/page": "app/admin/instituciones/page.js",
+  "/admin/sorteos/page": "app/admin/sorteos/page.js",
+  "/admin/resultados/page": "app/admin/resultados/page.js",
+  "/admin/torneos/page": "app/admin/torneos/page.js",
+  "/admin/usuarios/page": "app/admin/usuarios/page.js",
+  "/institucion/calendario/page": "app/institucion/calendario/page.js",
+  "/institucion/page": "app/institucion/page.js",
+  "/institucion/resultados/page": "app/institucion/resultados/page.js",
+  "/institucion/inscripciones/page": "app/institucion/inscripciones/page.js"
+}

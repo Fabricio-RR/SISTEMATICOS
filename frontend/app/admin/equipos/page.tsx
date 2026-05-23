@@ -2,28 +2,30 @@
 import { useEffect, useState } from "react";
 import { Dumbbell, Plus, Trash2, Search, AlertCircle, CheckCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import type { ClubEquipo, Institucion, Deporte } from "@/types/api";
+import type { ClubEquipo, Institucion, Deporte, Torneo } from "@/types/api";
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
 
 const ESTADO_BADGE: Record<string, string> = {
   pendiente: "bg-amber-50 text-amber-700",
-  aprobado: "bg-green-50 text-green-700",
+  aprobado:  "bg-green-50 text-green-700",
   rechazado: "bg-red-50 text-red-600",
 };
 
 export default function EquiposPage() {
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([]);
+  const [equipos, setEquipos]           = useState<ClubEquipo[]>([]);
   const [instituciones, setInstituciones] = useState<Institucion[]>([]);
-  const [deportes, setDeportes] = useState<Deporte[]>([]);
-  const [busqueda, setBusqueda] = useState("");
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ nombre_equipo: "", institucion_id: 0, deporte_id: 0 });
-  const [guardando, setGuardando] = useState(false);
-  const [errorForm, setErrorForm] = useState("");
-  const [aprobando, setAprobando] = useState<number | null>(null);
+  const [deportes, setDeportes]         = useState<Deporte[]>([]);
+  const [torneos, setTorneos]           = useState<Torneo[]>([]);
+  const [busqueda, setBusqueda]         = useState("");
+  const [cargando, setCargando]         = useState(true);
+  const [error, setError]               = useState("");
+  const [success, setSuccess]           = useState("");
+  const [modal, setModal]               = useState(false);
+  const [form, setForm]                 = useState({ nombre_equipo: "", institucion_id: 0, deporte_id: 0, torneo_id: 0 });
+  const [guardando, setGuardando]       = useState(false);
+  const [errorForm, setErrorForm]       = useState("");
+  const [aprobando, setAprobando]       = useState<number | null>(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -31,23 +33,46 @@ export default function EquiposPage() {
     setCargando(true);
     setError("");
     try {
-      const [eq, inst, dep] = await Promise.all([api.getEquipos(), api.getInstituciones(), api.getDeportes()]);
+      const [eq, inst, dep, torn] = await Promise.all([
+        api.getEquipos(),
+        api.getInstituciones(),
+        api.getDeportes(),
+        api.getTorneos(),
+      ]);
       setEquipos(eq);
       setInstituciones(inst);
       setDeportes(dep);
+      setTorneos(torn);
     } catch { setError("No se pudo cargar los equipos."); }
     finally { setCargando(false); }
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    setError(""); setSuccess("");
     if (!form.institucion_id || !form.deporte_id) { setErrorForm("Selecciona institución y deporte."); return; }
-    setGuardando(true);
-    setErrorForm("");
+    if (!form.torneo_id && torneosAbiertos.length > 0) { setErrorForm("Selecciona un torneo para inscribir el equipo."); return; }
+    setGuardando(true); setErrorForm("");
     try {
-      await api.createEquipo(form);
+      const { torneo_id, ...equipoData } = form;
+      const equipo = await api.createEquipo(equipoData);
+
+      if (torneo_id) {
+        try {
+          await api.createInscripcion({ torneo_id, club_equipo_id: equipo.id });
+          const t = torneos.find(t => t.id === torneo_id);
+          setSuccess(`Equipo "${equipo.nombre_equipo}" creado e inscrito en "${t?.nombre}". Aparecerá en Sorteos cuando el torneo avance a "En sorteo".`);
+        } catch (err) {
+          setError(err instanceof Error
+            ? `Equipo creado, pero la inscripción falló: ${err.message}`
+            : "Equipo creado, pero la inscripción falló. Inscríbelo manualmente en Inscripciones.");
+        }
+      } else {
+        setSuccess(`Equipo "${equipo.nombre_equipo}" creado sin torneo. Para que aparezca en Sorteos, inscríbelo en Inscripciones.`);
+      }
+
       setModal(false);
-      setForm({ nombre_equipo: "", institucion_id: 0, deporte_id: 0 });
+      setForm({ nombre_equipo: "", institucion_id: 0, deporte_id: 0, torneo_id: 0 });
       await cargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
@@ -67,10 +92,11 @@ export default function EquiposPage() {
     catch { setError("No se pudo eliminar el equipo."); }
   }
 
-  const instMap = new Map(instituciones.map((i) => [i.id, i.nombre_corto || i.nombre]));
-  const depMap = new Map(deportes.map((d) => [d.id, d.nombre]));
+  const instMap = new Map(instituciones.map(i => [i.id, i.nombre_corto || i.nombre]));
+  const depMap  = new Map(deportes.map(d => [d.id, d.nombre]));
+  const torneosAbiertos = torneos.filter(t => t.estado === "inscripcion_abierta");
 
-  const filtrados = equipos.filter((eq) =>
+  const filtrados = equipos.filter(eq =>
     eq.nombre_equipo.toLowerCase().includes(busqueda.toLowerCase()) ||
     (instMap.get(eq.institucion_id) ?? "").toLowerCase().includes(busqueda.toLowerCase())
   );
@@ -84,7 +110,7 @@ export default function EquiposPage() {
           <p className="text-sm text-gray-400 mt-0.5">Gestión de clubes y equipos por institución.</p>
         </div>
         <button
-          onClick={() => setModal(true)}
+          onClick={() => { setModal(true); setErrorForm(""); setSuccess(""); setError(""); }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -97,6 +123,11 @@ export default function EquiposPage() {
           <AlertCircle className="w-4 h-4 shrink-0" />{error}
         </div>
       )}
+      {success && (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
+          <CheckCircle className="w-4 h-4 shrink-0" />{success}
+        </div>
+      )}
 
       <div className="relative w-80">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -104,7 +135,7 @@ export default function EquiposPage() {
           type="text"
           placeholder="Buscar por equipo o institución..."
           value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
+          onChange={e => setBusqueda(e.target.value)}
           className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
         />
       </div>
@@ -128,7 +159,7 @@ export default function EquiposPage() {
               <tr><td colSpan={6} className="text-center py-14 text-sm text-gray-400">
                 {busqueda ? "Sin resultados" : "No hay equipos registrados"}
               </td></tr>
-            ) : filtrados.map((eq) => (
+            ) : filtrados.map(eq => (
               <tr key={eq.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 text-sm text-gray-400 font-mono">{String(eq.id).padStart(2, "0")}</td>
                 <td className="px-6 py-4">
@@ -176,14 +207,17 @@ export default function EquiposPage() {
               <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
                 <Dumbbell className="w-4 h-4 text-red-600" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900">Nuevo equipo</h2>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Nuevo equipo</h2>
+                <p className="text-xs text-gray-400 mt-0.5">El admin aprueba el equipo automáticamente</p>
+              </div>
             </div>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre del equipo</label>
                 <input
                   value={form.nombre_equipo}
-                  onChange={(e) => setForm({ ...form, nombre_equipo: e.target.value })}
+                  onChange={e => setForm({ ...form, nombre_equipo: e.target.value })}
                   required placeholder="Ej. UL Fútbol A"
                   className={inputCls}
                 />
@@ -192,24 +226,47 @@ export default function EquiposPage() {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Institución</label>
                 <select
                   value={form.institucion_id || ""}
-                  onChange={(e) => setForm({ ...form, institucion_id: Number(e.target.value) })}
+                  onChange={e => setForm({ ...form, institucion_id: Number(e.target.value) })}
                   required className={inputCls}
                 >
                   <option value="">Seleccionar institución</option>
-                  {instituciones.map((i) => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+                  {instituciones.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Deporte</label>
                 <select
                   value={form.deporte_id || ""}
-                  onChange={(e) => setForm({ ...form, deporte_id: Number(e.target.value) })}
+                  onChange={e => setForm({ ...form, deporte_id: Number(e.target.value) })}
                   required className={inputCls}
                 >
                   <option value="">Seleccionar deporte</option>
-                  {deportes.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                  {deportes.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
                 </select>
               </div>
+
+              {/* Torneo: requerido si hay abiertos, opcional si no */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Torneo
+                  {torneosAbiertos.length > 0
+                    ? <span className="ml-1 text-red-500">*</span>
+                    : <span className="ml-1 font-normal text-gray-400">(opcional — no hay torneos abiertos)</span>
+                  }
+                </label>
+                <select
+                  value={form.torneo_id || ""}
+                  onChange={e => setForm({ ...form, torneo_id: Number(e.target.value) })}
+                  className={inputCls}
+                >
+                  <option value="">{torneosAbiertos.length > 0 ? "Seleccionar torneo" : "Sin torneos con inscripción abierta"}</option>
+                  {torneosAbiertos.map(t => <option key={t.id} value={t.id}>{t.nombre} ({t.temporada})</option>)}
+                </select>
+                <p className="mt-1.5 text-xs text-gray-400">
+                  El equipo se inscribe automáticamente. Sin inscripción no aparece en Sorteos.
+                </p>
+              </div>
+
               {errorForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorForm}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setModal(false); setErrorForm(""); }}

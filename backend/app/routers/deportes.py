@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.deportes import Deporte
+from app.models.torneos import Torneo
 from app.schemas.deportes import DeporteCreate, DeporteOut
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
@@ -37,5 +38,16 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
     dep = db.query(Deporte).filter(Deporte.id == id).first()
     if not dep:
         raise HTTPException(status_code=404, detail="Deporte no encontrado")
+    if dep.es_obligatorio:
+        raise HTTPException(status_code=409, detail="No se puede eliminar un deporte obligatorio")
+    torneo_activo = db.query(Torneo).filter(
+        Torneo.deporte_id == id,
+        Torneo.estado.not_in(["finalizado", "suspendido"]),
+    ).first()
+    if torneo_activo:
+        raise HTTPException(
+            status_code=409,
+            detail=f"No se puede eliminar: hay torneos activos con este deporte (ej. '{torneo_activo.nombre}')",
+        )
     dep.esta_activo = False
     db.commit()

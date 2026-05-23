@@ -2,18 +2,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { BarChart3, RefreshCw, Save, Filter, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Partido, Torneo, ClubEquipo } from "@/types/api";
+import type { Partido, Torneo, PosicionTabla } from "@/types/api";
 
 type ResultadoForm = { local: string; visitante: string };
 
 export default function ResultadosPage() {
-  const [partidos, setPartidos] = useState<Partido[]>([]);
-  const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([]);
-  const [torneoId, setTorneoId] = useState<number | undefined>();
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
-  const [formas, setFormas] = useState<Record<number, ResultadoForm>>({});
+  const [partidos, setPartidos]   = useState<Partido[]>([]);
+  const [torneos, setTorneos]     = useState<Torneo[]>([]);
+  const [tabla, setTabla]         = useState<PosicionTabla[]>([]);
+  const [torneoId, setTorneoId]   = useState<number | undefined>();
+  const [cargando, setCargando]   = useState(true);
+  const [error, setError]         = useState("");
+  const [formas, setFormas]       = useState<Record<number, ResultadoForm>>({});
   const [guardando, setGuardando] = useState<number | null>(null);
   const [guardados, setGuardados] = useState<Set<number>>(new Set());
 
@@ -21,14 +21,14 @@ export default function ResultadosPage() {
     setCargando(true);
     setError("");
     try {
-      const [p, t, eq] = await Promise.all([
-        api.getPartidos({ torneo_id: torneoId, estado: "programado" }),
+      const [p, t, tab] = await Promise.all([
+        api.getPartidos({ torneo_id: torneoId }),
         api.getTorneos(),
-        api.getEquipos(),
+        torneoId ? api.getTabla(torneoId) : Promise.resolve([]),
       ]);
-      setPartidos(p);
       setTorneos(t);
-      setEquipos(eq);
+      setPartidos(p.filter(x => x.estado !== "finalizado"));
+      setTabla(tab);
       setFormas({});
       setGuardados(new Set());
     } catch {
@@ -38,10 +38,16 @@ export default function ResultadosPage() {
     }
   }, [torneoId]);
 
+  // Auto-seleccionar el único torneo en curso al cargar torneos
+  useEffect(() => {
+    const enCurso = torneos.filter(t => t.estado === "en_curso");
+    if (!torneoId && enCurso.length === 1) setTorneoId(enCurso[0].id);
+  }, [torneos, torneoId]);
+
   useEffect(() => { cargar(); }, [cargar]);
 
   function setForma(id: number, campo: keyof ResultadoForm, valor: string) {
-    setFormas((f) => ({ ...f, [id]: { ...(f[id] ?? { local: "", visitante: "" }), [campo]: valor } }));
+    setFormas(f => ({ ...f, [id]: { ...(f[id] ?? { local: "", visitante: "" }), [campo]: valor } }));
   }
 
   async function guardar(partido: Partido) {
@@ -53,9 +59,13 @@ export default function ResultadosPage() {
 
     setGuardando(partido.id);
     try {
-      await api.setResultado(partido.id, { resultado_local: rl, resultado_visitante: rv, estado: "finalizado" });
-      setGuardados((g) => new Set(g).add(partido.id));
-      await cargar();
+      await api.setResultado(partido.id, { resultado_local: rl, resultado_visitante: rv });
+      setGuardados(g => new Set(g).add(partido.id));
+      // Recargar tabla inmediatamente
+      if (torneoId) {
+        const tab = await api.getTabla(torneoId);
+        setTabla(tab);
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : "Error al guardar resultado");
     } finally {
@@ -63,18 +73,15 @@ export default function ResultadosPage() {
     }
   }
 
-  const tablaEquipos = [...equipos]
-    .filter((e) => e.partidos_jugados > 0)
-    .sort((a, b) => b.puntos - a.puntos || b.partidos_ganados - a.partidos_ganados);
+  const torneosEnCurso = torneos.filter(t => t.estado === "en_curso");
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
           <h1 className="text-2xl font-bold text-gray-900 mt-1">Resultados</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Ingresa los marcadores de los partidos programados.</p>
+          <p className="text-sm text-gray-400 mt-0.5">Ingresa los marcadores de los partidos pendientes.</p>
         </div>
         <button
           onClick={cargar}
@@ -87,65 +94,82 @@ export default function ResultadosPage() {
 
       {error && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+        </div>
+      )}
+
+      {torneosEnCurso.length === 0 && !cargando && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
+          No hay torneos en curso. Para ingresar resultados el torneo debe estar en estado En curso.
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Partidos */}
         <div className="lg:col-span-2 space-y-4">
           <div className="relative w-fit">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <select
               value={torneoId ?? ""}
-              onChange={(e) => setTorneoId(e.target.value ? Number(e.target.value) : undefined)}
+              onChange={e => setTorneoId(e.target.value ? Number(e.target.value) : undefined)}
               className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
             >
-              <option value="">Todos los torneos</option>
-              {torneos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+              <option value="">Seleccionar torneo</option>
+              {torneosEnCurso.map(t => (
+                <option key={t.id} value={t.id}>{t.nombre} — {t.temporada}</option>
+              ))}
+              {/* Mostrar los demás torneos como deshabilitados para orientar al usuario */}
+              {torneos.filter(t => t.estado !== "en_curso").length > 0 && (
+                <optgroup label="Sin partidos activos">
+                  {torneos.filter(t => t.estado !== "en_curso").map(t => (
+                    <option key={t.id} value={t.id} disabled>
+                      {t.nombre} [{t.estado.replace(/_/g, " ")}]
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">Partidos programados</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Partidos pendientes</h2>
               <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
-                {partidos.length} partido{partidos.length !== 1 ? "s" : ""}
+                {partidos.filter(p => !guardados.has(p.id)).length} pendiente{partidos.filter(p => !guardados.has(p.id)).length !== 1 ? "s" : ""}
               </span>
             </div>
 
             {cargando ? (
               <div className="flex items-center justify-center h-40 text-sm text-gray-400">Cargando...</div>
+            ) : !torneoId ? (
+              <div className="flex items-center justify-center h-40 text-sm text-gray-400">
+                Selecciona un torneo en curso
+              </div>
             ) : partidos.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-sm text-gray-400">
-                No hay partidos programados
+                No hay partidos pendientes — todos los resultados están ingresados
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {partidos.map((p) => {
+                {partidos.map(p => {
                   const forma = formas[p.id] ?? { local: "", visitante: "" };
                   const yaGuardado = guardados.has(p.id);
                   return (
                     <div
                       key={p.id}
-                      className={`flex items-center px-6 py-4 gap-4 transition ${
-                        yaGuardado ? "bg-green-50/50" : "hover:bg-gray-50/50"
-                      }`}
+                      className={`flex items-center px-6 py-4 gap-4 transition ${yaGuardado ? "bg-green-50/50" : "hover:bg-gray-50/50"}`}
                     >
                       <div className="w-1/4 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">{p.torneo_nombre}</p>
-                        <p className="text-xs text-gray-400">Jornada {p.jornada}</p>
+                        <p className="text-xs text-gray-400">{p.ronda ?? `Jornada ${p.jornada}`}</p>
                       </div>
                       <div className="flex flex-1 items-center justify-center gap-3">
-                        <span className="text-sm font-semibold text-gray-800 text-right truncate flex-1">
-                          {p.local_nombre}
-                        </span>
+                        <span className="text-sm font-semibold text-gray-800 text-right truncate flex-1">{p.local_nombre}</span>
                         <div className="flex items-center gap-2 shrink-0">
                           <input
                             type="number" min={0} max={99}
                             value={forma.local}
-                            onChange={(e) => setForma(p.id, "local", e.target.value)}
+                            onChange={e => setForma(p.id, "local", e.target.value)}
                             disabled={yaGuardado}
                             className="w-12 text-center text-base font-bold text-gray-900 border border-gray-200 rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-100 disabled:text-gray-400"
                           />
@@ -153,22 +177,18 @@ export default function ResultadosPage() {
                           <input
                             type="number" min={0} max={99}
                             value={forma.visitante}
-                            onChange={(e) => setForma(p.id, "visitante", e.target.value)}
+                            onChange={e => setForma(p.id, "visitante", e.target.value)}
                             disabled={yaGuardado}
                             className="w-12 text-center text-base font-bold text-gray-900 border border-gray-200 rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-100 disabled:text-gray-400"
                           />
                         </div>
-                        <span className="text-sm font-semibold text-gray-800 text-left truncate flex-1">
-                          {p.visitante_nombre}
-                        </span>
+                        <span className="text-sm font-semibold text-gray-800 text-left truncate flex-1">{p.visitante_nombre}</span>
                       </div>
                       <button
                         onClick={() => guardar(p)}
                         disabled={guardando === p.id || yaGuardado || forma.local === "" || forma.visitante === ""}
                         className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition disabled:opacity-40 ${
-                          yaGuardado
-                            ? "text-green-600 bg-green-50"
-                            : "text-white bg-red-600 hover:bg-red-700"
+                          yaGuardado ? "text-green-600 bg-green-50" : "text-white bg-red-600 hover:bg-red-700"
                         }`}
                       >
                         <Save className="w-3.5 h-3.5" />
@@ -189,21 +209,23 @@ export default function ResultadosPage() {
               <h2 className="text-sm font-semibold text-gray-900">Tabla general</h2>
               <BarChart3 className="w-4 h-4 text-gray-400" />
             </div>
-            {tablaEquipos.length === 0 ? (
+            {!torneoId ? (
+              <div className="px-5 py-10 text-center text-sm text-gray-400">Selecciona un torneo</div>
+            ) : tabla.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-gray-400">Sin datos aún</div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {tablaEquipos.slice(0, 10).map((eq, i) => (
-                  <div key={eq.id} className="px-5 py-3 flex items-center justify-between">
+                {tabla.map((row, i) => (
+                  <div key={row.equipo_id} className="px-5 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className={`text-sm font-bold w-5 text-right ${i === 0 ? "text-red-600" : "text-gray-300"}`}>
-                        {i + 1}
+                        {row.posicion}
                       </span>
-                      <span className="text-sm font-medium text-gray-900">{eq.nombre_equipo}</span>
+                      <span className="text-sm font-medium text-gray-900">{row.nombre_equipo}</span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">{eq.puntos} pts</p>
-                      <p className="text-xs text-gray-400">{eq.partidos_jugados} PJ</p>
+                      <p className="text-sm font-bold text-gray-900">{row.puntos} pts</p>
+                      <p className="text-xs text-gray-400">{row.partidos_jugados} PJ · {row.partidos_ganados}G {row.partidos_empatados}E {row.partidos_perdidos}P</p>
                     </div>
                   </div>
                 ))}

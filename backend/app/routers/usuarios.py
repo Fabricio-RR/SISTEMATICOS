@@ -11,8 +11,8 @@ router = APIRouter()
 
 
 @router.get("/", response_model=list[UsuarioOut])
-def get_all(db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    return db.query(Usuario).all()
+def get_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    return db.query(Usuario).offset(skip).limit(limit).all()
 
 
 @router.get("/pendientes", response_model=list[UsuarioOut])

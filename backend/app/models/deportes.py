@@ -11,6 +11,7 @@ class Deporte(Base):
     nombre: Mapped[str] = mapped_column(String(100))
     tipo_competidor: Mapped[str] = mapped_column(String(20), default="equipo")  # equipo, individual
     esta_activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    es_obligatorio: Mapped[bool] = mapped_column(Boolean, default=False)
 
     equipos: Mapped[list["ClubEquipo"]] = relationship("ClubEquipo", back_populates="deporte")
     torneos: Mapped[list["Torneo"]] = relationship("Torneo", back_populates="deporte")

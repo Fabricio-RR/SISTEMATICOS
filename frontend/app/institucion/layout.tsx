@@ -1,11 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Trophy, LayoutDashboard, UserPlus, CalendarDays,
-  BarChart3, LogOut, ChevronRight, Bell, ExternalLink,
+  BarChart3, LogOut, ChevronRight, Bell, ExternalLink, X, RotateCcw,
 } from "lucide-react";
+import { api } from "@/lib/api";
+import type { Notificacion } from "@/types/api";
 
 const navItems = [
   { href: "/institucion", label: "Resumen", icon: LayoutDashboard },
@@ -27,7 +29,14 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
   const [nombre, setNombre] = useState("");
   const [listo, setListo] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const cargarNotifs = useCallback(async () => {
+    try { setNotificaciones(await api.getNotificaciones()); } catch { /* silent */ }
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -36,13 +45,19 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
     if (rol === "admin") { router.replace("/admin"); return; }
     setNombre(localStorage.getItem("nombre") ?? "Institución");
     setListo(true);
-  }, [router]);
+    cargarNotifs();
+  }, [router, cargarNotifs]);
+
+  useEffect(() => {
+    if (!listo) return;
+    const interval = setInterval(cargarNotifs, 30_000);
+    return () => clearInterval(interval);
+  }, [listo, cargarNotifs]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -57,10 +72,34 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
   }
 
   function logout() {
-    localStorage.clear();
+    localStorage.removeItem("token");
+    localStorage.removeItem("rol");
+    localStorage.removeItem("nombre");
     router.push("/login");
   }
 
+  async function marcarLeida(id: number) {
+    try {
+      await api.marcarLeida(id);
+      setNotificaciones((prev) => prev.map((n) => n.id === id ? { ...n, leida: true } : n));
+    } catch { /* silent */ }
+  }
+
+  async function marcarTodas() {
+    try {
+      await api.marcarTodasLeidas();
+      setNotificaciones((prev) => prev.map((n) => ({ ...n, leida: true })));
+    } catch { /* silent */ }
+  }
+
+  async function eliminarNotif(id: number) {
+    try {
+      await api.eliminarNotificacion(id);
+      setNotificaciones((prev) => prev.filter((n) => n.id !== id));
+    } catch { /* silent */ }
+  }
+
+  const noLeidas = notificaciones.filter((n) => !n.leida).length;
   const inicial = nombre.charAt(0).toUpperCase();
   const pageLabel = breadcrumbLabels[pathname] ?? "Portal";
 
@@ -68,7 +107,6 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shrink-0">
-        {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-red-600 flex items-center justify-center shrink-0">
@@ -81,7 +119,6 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
@@ -102,7 +139,6 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
           })}
         </nav>
 
-        {/* Footer */}
         <div className="border-t border-gray-100 p-3">
           <a
             href="/"
@@ -116,9 +152,7 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Topbar */}
         <header className="h-14 bg-white border-b border-gray-100 px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-sm text-gray-400">
             <span className="font-medium text-gray-700">Portal Institucional</span>
@@ -127,9 +161,65 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-              <Bell className="w-4 h-4" />
-            </button>
+            {/* Campana de notificaciones */}
+            <div ref={notifRef} className="relative">
+              <button
+                onClick={() => { setNotifOpen((v) => !v); if (!notifOpen) cargarNotifs(); }}
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+              >
+                <Bell className="w-4 h-4" />
+                {noLeidas > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {noLeidas > 9 ? "9+" : noLeidas}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-gray-100 shadow-xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-900">Notificaciones</p>
+                    {noLeidas > 0 && (
+                      <button onClick={marcarTodas} className="text-xs text-red-600 hover:text-red-700 font-semibold transition">
+                        Marcar todas como leídas
+                      </button>
+                    )}
+                  </div>
+
+                  {notificaciones.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-gray-400">Sin notificaciones</div>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                      {notificaciones.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`px-4 py-3 flex gap-3 ${n.leida ? "bg-white" : "bg-amber-50/50"}`}
+                        >
+                          <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                            <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold ${n.leida ? "text-gray-600" : "text-gray-900"}`}>{n.titulo}</p>
+                            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.contenido}</p>
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {new Date(n.creada_en).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" })}
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-1 shrink-0">
+                            {!n.leida && (
+                              <button onClick={() => marcarLeida(n.id)} className="w-2 h-2 rounded-full bg-red-600 mt-1" title="Marcar como leída" />
+                            )}
+                            <button onClick={() => eliminarNotif(n.id)} className="text-gray-300 hover:text-red-500 transition-colors mt-auto">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div ref={dropdownRef} className="relative">
               <button
@@ -160,7 +250,6 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
           </div>
         </header>
 
-        {/* Content */}
         <main className="flex-1 overflow-y-auto p-8">{children}</main>
       </div>
     </div>

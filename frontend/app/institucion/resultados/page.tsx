@@ -126,15 +126,17 @@ export default function InstitucionResultadosPage() {
             </div>
           </div>
 
-          {/* Goleadores */}
+          {/* Líderes individuales */}
           <div>
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-50">
-                <h2 className="text-sm font-semibold text-gray-900">Goleadores</h2>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  {goleadores[0]?.etiqueta === "Puntos" ? "Anotadores" : "Goleadores"}
+                </h2>
               </div>
               {goleadores.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400 px-4 text-center">
-                  Sin goles registrados aún
+                  Sin estadísticas individuales aún
                 </div>
               ) : (
                 <div className="divide-y divide-gray-50">
@@ -149,7 +151,7 @@ export default function InstitucionResultadosPage() {
                       </div>
                       <div className="text-right shrink-0 ml-2">
                         <p className="text-sm font-bold text-red-600">{g.goles}</p>
-                        <p className="text-[10px] text-gray-400">goles</p>
+                        <p className="text-[10px] text-gray-400">{g.etiqueta.toLowerCase()}</p>
                       </div>
                     </div>
                   ))}

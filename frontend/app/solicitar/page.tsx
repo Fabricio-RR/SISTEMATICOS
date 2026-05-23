@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle, Phone } from "lucide-react";
 import { api } from "@/lib/api";
+import { CATEGORIAS, CATEGORIA_PAIS, type CategoriaInstitucion } from "@/types/api";
 
 const PREGUNTAS = [
   "¿Cuál es el nombre de tu primera mascota?",
@@ -30,6 +31,8 @@ export default function SolicitarPage() {
     contrasena: "",
     nombre_institucion: "",
     ciudad: "",
+    contacto: "",
+    categoria: "" as CategoriaInstitucion | "",
     pregunta_seguridad_1: PREGUNTAS[0],
     respuesta_seguridad_1: "",
     pregunta_seguridad_2: PREGUNTAS[1],
@@ -65,7 +68,7 @@ export default function SolicitarPage() {
 
     setCargando(true);
     try {
-      await api.solicitar(form);
+      await api.solicitar({ ...form, categoria: form.categoria || undefined });
       setStep("success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al enviar la solicitud");
@@ -199,7 +202,7 @@ export default function SolicitarPage() {
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Datos de la institución</p>
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="col-span-2">
                 <label className="block text-xs font-bold text-gray-500 mb-1">Nombre de la institución</label>
                 <input
                   type="text"
@@ -223,6 +226,38 @@ export default function SolicitarPage() {
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Contacto (teléfono o correo)</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={form.contacto}
+                    onChange={(e) => set("contacto", e.target.value)}
+                    placeholder="999-888-777"
+                    className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-gray-500 mb-1">Categoría (año escolar)</label>
+                <select
+                  value={form.categoria}
+                  onChange={(e) => set("categoria", e.target.value)}
+                  required
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Seleccionar categoría...</option>
+                  {CATEGORIAS.map((c) => (
+                    <option key={c} value={c}>{c} — {CATEGORIA_PAIS[c]}</option>
+                  ))}
+                </select>
+                {form.categoria && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    País representativo asignado automáticamente: <span className="font-semibold text-gray-600">{CATEGORIA_PAIS[form.categoria as CategoriaInstitucion]}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>

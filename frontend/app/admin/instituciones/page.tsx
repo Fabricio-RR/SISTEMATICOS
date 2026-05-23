@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { Building2, Plus, Trash2, Search, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Institucion } from "@/types/api";
+import type { Institucion, CategoriaInstitucion } from "@/types/api";
+import { CATEGORIAS, CATEGORIA_PAIS } from "@/types/api";
 
 export default function InstitucionesPage() {
   const [instituciones, setInstituciones] = useState<Institucion[]>([]);
@@ -10,7 +11,10 @@ export default function InstitucionesPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [form, setForm] = useState({ nombre: "", nombre_corto: "", ciudad: "", estado: "activo" });
+  const [form, setForm] = useState({
+    nombre: "", nombre_corto: "", ciudad: "", estado: "activo",
+    contacto: "", categoria: "" as CategoriaInstitucion | "",
+  });
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
 
@@ -33,9 +37,9 @@ export default function InstitucionesPage() {
     setGuardando(true);
     setErrorForm("");
     try {
-      await api.createInstitucion(form);
+      await api.createInstitucion({ ...form, categoria: form.categoria || undefined });
       setModalAbierto(false);
-      setForm({ nombre: "", nombre_corto: "", ciudad: "", estado: "activo" });
+      setForm({ nombre: "", nombre_corto: "", ciudad: "", estado: "activo", contacto: "", categoria: "" });
       await cargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
@@ -109,6 +113,8 @@ export default function InstitucionesPage() {
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">#</th>
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Institución</th>
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ciudad</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoría / País</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Contacto</th>
               <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Estado</th>
               <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
             </tr>
@@ -116,11 +122,11 @@ export default function InstitucionesPage() {
           <tbody className="divide-y divide-gray-50">
             {cargando ? (
               <tr>
-                <td colSpan={5} className="text-center py-14 text-sm text-gray-400">Cargando...</td>
+                <td colSpan={7} className="text-center py-14 text-sm text-gray-400">Cargando...</td>
               </tr>
             ) : filtradas.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-14 text-sm text-gray-400">
+                <td colSpan={7} className="text-center py-14 text-sm text-gray-400">
                   {busqueda ? "Sin resultados para la búsqueda" : "No hay instituciones registradas"}
                 </td>
               </tr>
@@ -140,6 +146,17 @@ export default function InstitucionesPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{inst.ciudad}</td>
+                  <td className="px-6 py-4">
+                    {inst.categoria ? (
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{inst.categoria}</p>
+                        <p className="text-xs text-gray-400">{inst.pais_representativo ?? "—"}</p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{inst.contacto ?? "—"}</td>
                   <td className="px-6 py-4 text-center">
                     <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${
                       inst.estado === "activo"
@@ -201,6 +218,31 @@ export default function InstitucionesPage() {
                   placeholder="Ej. Lima"
                   className={inputCls}
                 />
+              </Field>
+              <Field label="Contacto (teléfono o correo)">
+                <input
+                  value={form.contacto}
+                  onChange={(e) => setForm({ ...form, contacto: e.target.value })}
+                  placeholder="Ej. 999-888-777"
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Categoría (año escolar)">
+                <select
+                  value={form.categoria}
+                  onChange={(e) => setForm({ ...form, categoria: e.target.value as CategoriaInstitucion | "" })}
+                  className={inputCls}
+                >
+                  <option value="">Sin categoría</option>
+                  {CATEGORIAS.map((c) => (
+                    <option key={c} value={c}>{c} — {CATEGORIA_PAIS[c]}</option>
+                  ))}
+                </select>
+                {form.categoria && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    País asignado automáticamente: <span className="font-semibold">{CATEGORIA_PAIS[form.categoria as CategoriaInstitucion]}</span>
+                  </p>
+                )}
               </Field>
               {errorForm && (
                 <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorForm}</p>

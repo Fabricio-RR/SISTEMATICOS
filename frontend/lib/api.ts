@@ -29,6 +29,7 @@ import type {
   AtletaUpdate,
   PosicionTabla,
   Goleador,
+  Notificacion,
 } from "@/types/api";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -125,7 +126,7 @@ export const api = {
   createEquipo: (data: ClubEquipoCreate) =>
     request<ClubEquipo>("/api/equipos/", { method: "POST", body: JSON.stringify(data) }),
   aprobarEquipo: (id: number) =>
-    request<ClubEquipo>(`/api/equipos/${id}`, { method: "PUT", body: JSON.stringify({ estado: "aprobado" }) }),
+    request<ClubEquipo>(`/api/equipos/${id}/aprobar`, { method: "PATCH" }),
   deleteEquipo: (id: number) => request<void>(`/api/equipos/${id}`, { method: "DELETE" }),
 
   // ── Torneos ───────────────────────────────────────────────────────────────────
@@ -134,6 +135,8 @@ export const api = {
   createTorneo: (data: TorneoCreate) =>
     request<Torneo>("/api/torneos/", { method: "POST", body: JSON.stringify(data) }),
   deleteTorneo: (id: number) => request<void>(`/api/torneos/${id}`, { method: "DELETE" }),
+  avanzarTorneo: (id: number) => request<Torneo>(`/api/torneos/${id}/avanzar`, { method: "PATCH" }),
+  suspenderTorneo: (id: number) => request<Torneo>(`/api/torneos/${id}/suspender`, { method: "PATCH" }),
 
   // ── Sedes ─────────────────────────────────────────────────────────────────────
 
@@ -156,6 +159,8 @@ export const api = {
     request<Inscripcion>(`/api/inscripciones/${id}/aprobar`, { method: "PATCH" }),
   rechazarInscripcion: (id: number) =>
     request<Inscripcion>(`/api/inscripciones/${id}/rechazar`, { method: "PATCH" }),
+  retirarInscripcion: (id: number) =>
+    request<Inscripcion>(`/api/inscripciones/${id}/retirar`, { method: "PATCH" }),
   deleteInscripcion: (id: number) => request<void>(`/api/inscripciones/${id}`, { method: "DELETE" }),
 
   // ── Grupos ────────────────────────────────────────────────────────────────────
@@ -172,13 +177,18 @@ export const api = {
     request<Fixture[]>(`/api/fixture/${torneo_id != null ? `?torneo_id=${torneo_id}` : ""}`),
   generarFixture: (torneo_id: number, force = false) =>
     request<Fixture[]>("/api/fixture/generar", { method: "POST", body: JSON.stringify({ torneo_id, force }) }),
+  generarFaseEliminatoria: (torneo_id: number, n_clasificados: number) =>
+    request<Fixture>("/api/fixture/fase-eliminatoria", { method: "POST", body: JSON.stringify({ torneo_id, n_clasificados }) }),
+  generarSiguienteFase: (torneo_id: number, fixture_id: number) =>
+    request<Fixture>("/api/fixture/siguiente-fase", { method: "POST", body: JSON.stringify({ torneo_id, fixture_id }) }),
   deleteFixture: (torneo_id: number) => request<void>(`/api/fixture/${torneo_id}`, { method: "DELETE" }),
 
   // ── Partidos ──────────────────────────────────────────────────────────────────
 
-  getPartidos: (params?: { torneo_id?: number; estado?: string }) => {
+  getPartidos: (params?: { torneo_id?: number; deporte_id?: number; estado?: string }) => {
     const q = new URLSearchParams();
     if (params?.torneo_id != null) q.set("torneo_id", String(params.torneo_id));
+    if (params?.deporte_id != null) q.set("deporte_id", String(params.deporte_id));
     if (params?.estado) q.set("estado", params.estado);
     const qs = q.toString();
     return request<Partido[]>(`/api/partidos/${qs ? `?${qs}` : ""}`);
@@ -197,6 +207,13 @@ export const api = {
   updateAtleta: (id: number, data: AtletaUpdate) =>
     request<AtletaJugador>(`/api/atletas/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteAtleta: (id: number) => request<void>(`/api/atletas/${id}`, { method: "DELETE" }),
+
+  // ── Notificaciones ────────────────────────────────────────────────────────────
+
+  getNotificaciones: () => request<Notificacion[]>("/api/notificaciones/"),
+  marcarLeida: (id: number) => request<Notificacion>(`/api/notificaciones/${id}/leer`, { method: "PATCH" }),
+  marcarTodasLeidas: () => request<void>("/api/notificaciones/leer-todas", { method: "PATCH" }),
+  eliminarNotificacion: (id: number) => request<void>(`/api/notificaciones/${id}`, { method: "DELETE" }),
 
   // ── Estadísticas ──────────────────────────────────────────────────────────────
 

@@ -1,0 +1,7 @@
+{
+  "/admin/torneos/page": "app/admin/torneos/page.js",
+  "/admin/equipos/page": "app/admin/equipos/page.js",
+  "/admin/inscripciones/page": "app/admin/inscripciones/page.js",
+  "/admin/encuentros/page": "app/admin/encuentros/page.js",
+  "/admin/page": "app/admin/page.js"
+}

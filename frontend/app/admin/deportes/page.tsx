@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Trophy, Plus, Trash2, Search, AlertCircle } from "lucide-react";
+import { Trophy, Plus, Trash2, Search, AlertCircle, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Deporte, TipoCompetidor } from "@/types/api";
 
@@ -91,15 +91,16 @@ export default function DeportesPage() {
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">#</th>
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Deporte</th>
               <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Tipo</th>
+              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Categoría</th>
               <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Estado</th>
               <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {cargando ? (
-              <tr><td colSpan={5} className="text-center py-14 text-sm text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={6} className="text-center py-14 text-sm text-gray-400">Cargando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-14 text-sm text-gray-400">
+              <tr><td colSpan={6} className="text-center py-14 text-sm text-gray-400">
                 {busqueda ? "Sin resultados" : "No hay deportes registrados"}
               </td></tr>
             ) : filtrados.map((d) => (
@@ -107,8 +108,8 @@ export default function DeportesPage() {
                 <td className="px-6 py-4 text-sm text-gray-400 font-mono">{String(d.id).padStart(2, "0")}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                      <Trophy className="w-4 h-4 text-red-600" />
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${d.es_obligatorio ? "bg-amber-50" : "bg-red-50"}`}>
+                      <Trophy className={`w-4 h-4 ${d.es_obligatorio ? "text-amber-600" : "text-red-600"}`} />
                     </div>
                     <p className="text-sm font-semibold text-gray-900">{d.nombre}</p>
                   </div>
@@ -119,6 +120,18 @@ export default function DeportesPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">
+                  {d.es_obligatorio ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
+                      <ShieldCheck className="w-3 h-3" />
+                      Obligatorio
+                    </span>
+                  ) : (
+                    <span className="inline-flex text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                      Adicional
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-4 text-center">
                   <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${
                     d.esta_activo ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
                   }`}>
@@ -126,12 +139,14 @@ export default function DeportesPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <button
-                    onClick={() => handleDelete(d.id)}
-                    className="text-gray-300 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {!d.es_obligatorio && (
+                    <button
+                      onClick={() => handleDelete(d.id)}
+                      className="text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

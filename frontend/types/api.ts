@@ -21,6 +21,8 @@ export interface SolicitudAccesoPayload {
   contrasena: string;
   nombre_institucion: string;
   ciudad: string;
+  contacto?: string;
+  categoria?: CategoriaInstitucion;
   pregunta_seguridad_1: string;
   respuesta_seguridad_1: string;
   pregunta_seguridad_2: string;
@@ -57,6 +59,29 @@ export interface Usuario {
 
 // ── Instituciones ─────────────────────────────────────────────────────────────
 
+export type CategoriaInstitucion =
+  | "Primer año"
+  | "Segundo año"
+  | "Tercer año"
+  | "Cuarto año"
+  | "Quinto año";
+
+export const CATEGORIAS: CategoriaInstitucion[] = [
+  "Primer año",
+  "Segundo año",
+  "Tercer año",
+  "Cuarto año",
+  "Quinto año",
+];
+
+export const CATEGORIA_PAIS: Record<CategoriaInstitucion, string> = {
+  "Primer año":  "Brasil",
+  "Segundo año": "Argentina",
+  "Tercer año":  "Alemania",
+  "Cuarto año":  "España",
+  "Quinto año":  "Francia",
+};
+
 export interface Institucion {
   id: number;
   nombre: string;
@@ -64,6 +89,9 @@ export interface Institucion {
   ciudad: string;
   estado: string;
   imagen_url: string | null;
+  contacto: string | null;
+  categoria: CategoriaInstitucion | null;
+  pais_representativo: string | null;
 }
 
 export interface InstitucionCreate {
@@ -71,6 +99,9 @@ export interface InstitucionCreate {
   nombre_corto: string;
   ciudad: string;
   estado?: string;
+  contacto?: string;
+  categoria?: CategoriaInstitucion;
+  pais_representativo?: string;
 }
 
 // ── Deportes ──────────────────────────────────────────────────────────────────
@@ -82,6 +113,7 @@ export interface Deporte {
   nombre: string;
   tipo_competidor: TipoCompetidor;
   esta_activo: boolean;
+  es_obligatorio: boolean;
 }
 
 export interface DeporteCreate {
@@ -115,7 +147,38 @@ export interface ClubEquipoCreate {
 // ── Torneos ───────────────────────────────────────────────────────────────────
 
 export type FormatoTorneo = "liga" | "eliminacion_simple" | "grupos";
-export type EstadoTorneo = "activo" | "finalizado" | "suspendido";
+export type EstadoTorneo =
+  | "inscripcion_abierta"
+  | "inscripcion_cerrada"
+  | "en_sorteo"
+  | "en_curso"
+  | "finalizado"
+  | "suspendido";
+
+export const ESTADO_TORNEO_LABEL: Record<EstadoTorneo, string> = {
+  inscripcion_abierta:  "Inscripción abierta",
+  inscripcion_cerrada:  "Inscripción cerrada",
+  en_sorteo:            "En sorteo",
+  en_curso:             "En curso",
+  finalizado:           "Finalizado",
+  suspendido:           "Suspendido",
+};
+
+export const ESTADO_TORNEO_SIGUIENTE: Partial<Record<EstadoTorneo, EstadoTorneo>> = {
+  inscripcion_abierta:  "inscripcion_cerrada",
+  inscripcion_cerrada:  "en_sorteo",
+  en_sorteo:            "en_curso",
+  en_curso:             "finalizado",
+};
+
+export const ESTADO_TORNEO_BADGE: Record<EstadoTorneo, string> = {
+  inscripcion_abierta:  "bg-blue-50 text-blue-700",
+  inscripcion_cerrada:  "bg-amber-50 text-amber-700",
+  en_sorteo:            "bg-purple-50 text-purple-700",
+  en_curso:             "bg-green-50 text-green-700",
+  finalizado:           "bg-gray-100 text-gray-500",
+  suspendido:           "bg-red-50 text-red-600",
+};
 
 export interface Torneo {
   id: number;
@@ -131,7 +194,6 @@ export interface TorneoCreate {
   nombre: string;
   formato: FormatoTorneo;
   temporada: string;
-  estado?: EstadoTorneo;
 }
 
 // ── Sedes ─────────────────────────────────────────────────────────────────────
@@ -163,7 +225,7 @@ export interface Noticia {
 
 // ── Inscripciones ─────────────────────────────────────────────────────────────
 
-export type EstadoInscripcion = "pendiente" | "aprobado" | "rechazado";
+export type EstadoInscripcion = "pendiente" | "aprobado" | "rechazado" | "retirado";
 
 export interface ClubMin {
   id: number;
@@ -237,9 +299,13 @@ export interface Partido {
   resultado_local: number | null;
   resultado_visitante: number | null;
   estado: EstadoPartido;
+  es_walkover: boolean;
+  motivo_reprogramacion: string | null;
+  reprogramado_en: string | null;
   local_nombre: string;
   visitante_nombre: string;
   torneo_nombre: string;
+  sede_nombre: string;
   jornada: number;
 }
 
@@ -249,12 +315,24 @@ export interface PartidoUpdate {
   fecha_hora?: string;
   ronda?: string;
   estado?: EstadoPartido;
+  motivo_reprogramacion?: string;
+}
+
+// ── Notificaciones ────────────────────────────────────────────────────────────
+
+export interface Notificacion {
+  id: number;
+  institucion_id: number;
+  partido_id: number | null;
+  titulo: string;
+  contenido: string;
+  leida: boolean;
+  creada_en: string;
 }
 
 export interface ResultadoUpdate {
   resultado_local: number;
   resultado_visitante: number;
-  estado?: EstadoPartido;
 }
 
 // ── Atletas ───────────────────────────────────────────────────────────────────
@@ -269,6 +347,7 @@ export interface AtletaJugador {
   posicion_rol: string | null;
   documento_identidad: string;
   goles_anotados: number;
+  puntos_anotados: number;
   tarjetas_amarillas: number;
   tarjetas_rojas: number;
   estado: EstadoAtleta;
@@ -286,6 +365,10 @@ export interface AtletaUpdate {
   nombre_completo?: string;
   numero_camiseta?: string;
   posicion_rol?: string;
+  goles_anotados?: number;
+  puntos_anotados?: number;
+  tarjetas_amarillas?: number;
+  tarjetas_rojas?: number;
   estado?: EstadoAtleta;
 }
 
@@ -310,4 +393,5 @@ export interface Goleador {
   goles: number;
   tarjetas_amarillas: number;
   tarjetas_rojas: number;
+  etiqueta: string;
 }
