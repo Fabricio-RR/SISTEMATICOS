@@ -62,7 +62,8 @@ def get_all(
     if club_equipo_id:
         q = q.filter(AtletaJugador.club_equipo_id == club_equipo_id)
     atletas = q.all()
-    _populate_dynamic_stats(atletas, db, torneo_id, nombre_fase)
+    if torneo_id is not None or nombre_fase is not None:
+        _populate_dynamic_stats(atletas, db, torneo_id, nombre_fase)
     return atletas
 
 
@@ -71,7 +72,6 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
     atleta = db.query(AtletaJugador).filter(AtletaJugador.id == id).first()
     if not atleta:
         raise HTTPException(status_code=404, detail="Atleta no encontrado")
-    _populate_dynamic_stats([atleta], db)
     return atleta
 
 

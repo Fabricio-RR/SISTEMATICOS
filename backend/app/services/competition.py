@@ -1,12 +1,43 @@
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.models.atleta_jugador import AtletaJugador
+from app.models.eventos_partido import EventoPartido
 from app.models.fixture import Fixture
 from app.models.inscripciones import Inscripcion
 from app.models.partidos import Partido
 from app.models.torneos import Torneo
 
 ELIMINATION_PHASE_NAMES = ("Cuartos de Final", "Semifinales", "Final")
+
+
+def recalculate_atleta_stats(db: Session, atleta_ids: list[int]) -> None:
+    """Recalcula desde eventos_partido los contadores globales de cada atleta y los persiste."""
+    if not atleta_ids:
+        return
+
+    rows = (
+        db.query(
+            EventoPartido.atleta_jugador_id,
+            EventoPartido.tipo_evento,
+            func.count(EventoPartido.id).label("cnt"),
+        )
+        .filter(EventoPartido.atleta_jugador_id.in_(atleta_ids))
+        .group_by(EventoPartido.atleta_jugador_id, EventoPartido.tipo_evento)
+        .all()
+    )
+
+    stats_map: dict[int, dict[str, int]] = {aid: {} for aid in atleta_ids}
+    for atleta_id, tipo, cnt in rows:
+        stats_map[atleta_id][tipo] = cnt
+
+    for atleta in db.query(AtletaJugador).filter(AtletaJugador.id.in_(atleta_ids)).all():
+        s = stats_map.get(atleta.id, {})
+        atleta.goles_anotados = s.get("gol", 0)
+        atleta.puntos_anotados = s.get("puntos", 0)
+        atleta.tarjetas_amarillas = s.get("tarjeta_amarilla", 0)
+        atleta.tarjetas_rojas = s.get("tarjeta_roja", 0)
 
 
 def count_approved_enrollments(torneo_id: int, db: Session) -> int:

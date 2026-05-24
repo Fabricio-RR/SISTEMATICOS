@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, ForeignKey, DateTime, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,12 +25,7 @@ class ClubEquipo(Base):
     deporte_id: Mapped[int] = mapped_column(Integer, ForeignKey("deportes.id"))
     nombre_equipo: Mapped[str] = mapped_column(String(150))
     estado: Mapped[str] = mapped_column(String(30), default="pendiente")  # pendiente, aprobado, rechazado
-    posicion_tabla: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    puntos: Mapped[int] = mapped_column(Integer, default=0)
-    partidos_jugados: Mapped[int] = mapped_column(Integer, default=0)
-    partidos_ganados: Mapped[int] = mapped_column(Integer, default=0)
-    partidos_perdidos: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     institucion: Mapped["Institucion"] = relationship("Institucion", back_populates="equipos")
     deporte: Mapped["Deporte"] = relationship("Deporte", back_populates="equipos")

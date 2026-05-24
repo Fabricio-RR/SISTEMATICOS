@@ -14,6 +14,7 @@ from app.services.competition import (
     collect_winners,
     elimination_phase_name_from_size,
     next_elimination_phase_name,
+    recalculate_atleta_stats,
 )
 from app.models.eventos_partido import EventoPartido
 from app.models.notificaciones import Notificacion
@@ -95,9 +96,18 @@ def generar(data: GenerarFixtureRequest, db: Session = Depends(get_db), _: Usuar
     if fixture_ids:
         partido_ids = [p.id for p in db.query(Partido.id).filter(Partido.fixture_id.in_(fixture_ids)).all()]
         if partido_ids:
+            atleta_ids_a_resetear = [
+                row[0]
+                for row in db.query(EventoPartido.atleta_jugador_id)
+                .filter(EventoPartido.partido_id.in_(partido_ids), EventoPartido.atleta_jugador_id.isnot(None))
+                .distinct()
+                .all()
+            ]
             db.query(EventoPartido).filter(EventoPartido.partido_id.in_(partido_ids)).delete(synchronize_session=False)
             db.query(Notificacion).filter(Notificacion.partido_id.in_(partido_ids)).delete(synchronize_session=False)
             db.query(Partido).filter(Partido.id.in_(partido_ids)).delete(synchronize_session=False)
+            db.flush()
+            recalculate_atleta_stats(db, atleta_ids_a_resetear)
         db.query(Fixture).filter(Fixture.id.in_(fixture_ids)).delete(synchronize_session=False)
 
     db.query(Inscripcion).filter(Inscripcion.torneo_id == data.torneo_id).update({
@@ -254,9 +264,18 @@ def delete_fixture(torneo_id: int, db: Session = Depends(get_db), _: Usuario = D
     if fixture_ids:
         partido_ids = [p.id for p in db.query(Partido.id).filter(Partido.fixture_id.in_(fixture_ids)).all()]
         if partido_ids:
+            atleta_ids_a_resetear = [
+                row[0]
+                for row in db.query(EventoPartido.atleta_jugador_id)
+                .filter(EventoPartido.partido_id.in_(partido_ids), EventoPartido.atleta_jugador_id.isnot(None))
+                .distinct()
+                .all()
+            ]
             db.query(EventoPartido).filter(EventoPartido.partido_id.in_(partido_ids)).delete(synchronize_session=False)
             db.query(Notificacion).filter(Notificacion.partido_id.in_(partido_ids)).delete(synchronize_session=False)
             db.query(Partido).filter(Partido.id.in_(partido_ids)).delete(synchronize_session=False)
+            db.flush()
+            recalculate_atleta_stats(db, atleta_ids_a_resetear)
         db.query(Fixture).filter(Fixture.id.in_(fixture_ids)).delete(synchronize_session=False)
 
     db.query(Inscripcion).filter(Inscripcion.torneo_id == torneo_id).update({

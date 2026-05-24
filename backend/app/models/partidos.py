@@ -16,6 +16,14 @@ class Partido(Base):
             "estado IN ('programado', 'en_curso', 'finalizado')",
             name="ck_partido_estado",
         ),
+        CheckConstraint(
+            "resultado_local IS NULL OR resultado_local >= 0",
+            name="ck_partido_resultado_local_positivo",
+        ),
+        CheckConstraint(
+            "resultado_visitante IS NULL OR resultado_visitante >= 0",
+            name="ck_partido_resultado_visitante_positivo",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)

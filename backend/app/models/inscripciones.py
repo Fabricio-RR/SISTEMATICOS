@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, ForeignKey, DateTime, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,7 +21,7 @@ class Inscripcion(Base):
     grupo_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("grupos.id"), nullable=True)
     numero_seeding: Mapped[int | None] = mapped_column(Integer, nullable=True)
     estado: Mapped[str] = mapped_column(String(30), default="pendiente")  # pendiente, aprobado
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     puntos: Mapped[int] = mapped_column(Integer, default=0)
     partidos_jugados: Mapped[int] = mapped_column(Integer, default=0)

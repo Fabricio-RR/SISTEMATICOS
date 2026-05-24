@@ -13,10 +13,6 @@ class AtletaUpdate(BaseModel):
     nombre_completo: str | None = None
     numero_camiseta: str | None = None
     posicion_rol: str | None = None
-    goles_anotados: int | None = Field(default=None, ge=0)
-    puntos_anotados: int | None = Field(default=None, ge=0)
-    tarjetas_amarillas: int | None = Field(default=None, ge=0)
-    tarjetas_rojas: int | None = Field(default=None, ge=0)
     estado: str | None = None
 
 

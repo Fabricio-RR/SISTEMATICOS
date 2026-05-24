@@ -15,7 +15,7 @@ from app.models.atleta_jugador import AtletaJugador
 from app.schemas.partidos import PartidoUpdate, ResultadoUpdate, PartidoOut
 from app.core.deps import require_admin, require_admin_or_arbitro
 from app.models.usuarios import Usuario
-from app.services.competition import apply_result_change
+from app.services.competition import apply_result_change, recalculate_atleta_stats
 
 router = APIRouter()
 
@@ -171,7 +171,16 @@ def set_resultado(id: int, data: ResultadoUpdate, db: Session = Depends(get_db),
     )
 
     if data.eventos is not None:
+        old_atleta_ids = {
+            row[0]
+            for row in db.query(EventoPartido.atleta_jugador_id)
+            .filter(EventoPartido.partido_id == p.id, EventoPartido.atleta_jugador_id.isnot(None))
+            .all()
+        }
+
         db.query(EventoPartido).filter(EventoPartido.partido_id == p.id).delete()
+
+        new_atleta_ids: set[int] = set()
         for ev in data.eventos:
             atleta = db.query(AtletaJugador).filter(AtletaJugador.id == ev.atleta_jugador_id).first()
             if not atleta:
@@ -197,6 +206,11 @@ def set_resultado(id: int, data: ResultadoUpdate, db: Session = Depends(get_db),
                 descripcion=ev.descripcion,
             )
             db.add(db_ev)
+            if ev.atleta_jugador_id:
+                new_atleta_ids.add(ev.atleta_jugador_id)
+
+        db.flush()
+        recalculate_atleta_stats(db, list(old_atleta_ids | new_atleta_ids))
 
     db.add(Auditoria(
         usuario_id=current_user.id,
