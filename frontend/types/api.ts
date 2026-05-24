@@ -418,3 +418,16 @@ export interface Goleador {
   tarjetas_rojas: number;
   etiqueta: string;
 }
+
+// ── Auditoría ─────────────────────────────────────────────────────────────────
+
+export interface AuditoriaEntry {
+  id: number;
+  usuario_id: number | null;
+  tabla_afectada: string;
+  accion: string;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  creado_en: string;
+  usuario_nombre: string | null;
+}

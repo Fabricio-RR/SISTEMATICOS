@@ -72,6 +72,7 @@ def get_all(
     torneo_id: int | None = None,
     deporte_id: int | None = None,
     estado: str | None = None,
+    torneo_estado: str | None = None,
     db: Session = Depends(get_db),
 ):
     q = _get_all_query(db)
@@ -79,6 +80,8 @@ def get_all(
         q = q.join(Fixture).filter(Fixture.torneo_id == torneo_id)
     elif deporte_id:
         q = q.join(Fixture).join(Torneo, Fixture.torneo_id == Torneo.id).filter(Torneo.deporte_id == deporte_id)
+    if torneo_estado:
+        q = q.join(Fixture).join(Torneo, Fixture.torneo_id == Torneo.id).filter(Torneo.estado == torneo_estado)
     if estado:
         q = q.filter(Partido.estado == estado)
     return [_build_out(p) for p in q.all()]

@@ -30,6 +30,7 @@ import type {
   PosicionTabla,
   Goleador,
   Notificacion,
+  AuditoriaEntry,
 } from "@/types/api";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -237,6 +238,7 @@ export const api = {
   deleteTorneo: (id: number) => request<void>(`/api/torneos/${id}`, { method: "DELETE" }),
   avanzarTorneo: (id: number) => request<Torneo>(`/api/torneos/${id}/avanzar`, { method: "PATCH" }),
   suspenderTorneo: (id: number) => request<Torneo>(`/api/torneos/${id}/suspender`, { method: "PATCH" }),
+  reactivarTorneo: (id: number) => request<Torneo>(`/api/torneos/${id}/reactivar`, { method: "PATCH" }),
 
   // ── Sedes ─────────────────────────────────────────────────────────────────────
 
@@ -285,11 +287,12 @@ export const api = {
 
   // ── Partidos ──────────────────────────────────────────────────────────────────
 
-  getPartidos: (params?: { torneo_id?: number; deporte_id?: number; estado?: string }) => {
+  getPartidos: (params?: { torneo_id?: number; deporte_id?: number; estado?: string; torneo_estado?: string }) => {
     const q = new URLSearchParams();
     if (params?.torneo_id != null) q.set("torneo_id", String(params.torneo_id));
     if (params?.deporte_id != null) q.set("deporte_id", String(params.deporte_id));
     if (params?.estado) q.set("estado", params.estado);
+    if (params?.torneo_estado) q.set("torneo_estado", params.torneo_estado);
     const qs = q.toString();
     return request<Partido[]>(`/api/partidos/${qs ? `?${qs}` : ""}`);
   },
@@ -327,4 +330,9 @@ export const api = {
     request<PosicionTabla[]>(`/api/estadisticas/tabla?torneo_id=${torneo_id}`),
   getGoleadores: (torneo_id: number, limit = 10) =>
     request<Goleador[]>(`/api/estadisticas/goleadores?torneo_id=${torneo_id}&limit=${limit}`),
+
+  // ── Auditoría ─────────────────────────────────────────────────────────────────
+
+  getAuditoria: (limit = 20) =>
+    request<AuditoriaEntry[]>(`/api/auditoria/?limit=${limit}`),
 };

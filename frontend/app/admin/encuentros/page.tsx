@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Calendar, RefreshCw, Filter, AlertCircle, RotateCcw, Pencil, X, Plus, Trash2, ClipboardList, Save, ChevronDown
+  Calendar, RefreshCw, Filter, AlertCircle, RotateCcw, Pencil, X, Plus, Trash2, ClipboardList, Save, ChevronDown, Swords
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Partido, Torneo, Deporte, EstadoPartido, PartidoUpdate, Sede, AtletaJugador, EventoPartidoCreate } from "@/types/api";
@@ -13,8 +13,22 @@ const ESTADO_LABEL: Record<EstadoPartido, string> = {
   finalizado: "Finalizado",
 };
 
+const TIPO_INFO: Record<string, { label: string; bg: string }> = {
+  gol:              { label: "GOL", bg: "bg-emerald-500 text-white" },
+  puntos:           { label: "PTS", bg: "bg-blue-500 text-white"   },
+  tarjeta_amarilla: { label: "TA",  bg: "bg-amber-400 text-white"  },
+  tarjeta_roja:     { label: "TR",  bg: "bg-red-600 text-white"    },
+};
+
+const scoreInputCls =
+  "w-14 h-14 text-center text-3xl font-black text-gray-900 bg-white rounded-xl border-0 " +
+  "focus:outline-none focus:ring-4 focus:ring-red-300 transition shadow " +
+  "disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed disabled:shadow-none " +
+  "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+
 type EditModal = { partido: Partido; form: PartidoUpdate; fechaOriginal: string | null };
 type CorreccionModal = { partido: Partido; local: string; visitante: string };
+type RegistroModal = { partido: Partido; local: string; visitante: string };
 
 export default function EncuentrosPage() {
   const searchParams = useSearchParams();
@@ -31,9 +45,11 @@ export default function EncuentrosPage() {
   const [error, setError] = useState("");
   const [editModal, setEditModal] = useState<EditModal | null>(null);
   const [correccionModal, setCorreccionModal] = useState<CorreccionModal | null>(null);
+  const [registroModal, setRegistroModal] = useState<RegistroModal | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
+  // Modal eventos (compartido entre correccion y registro)
   const [modalEventos, setModalEventos] = useState<EventoPartidoCreate[]>([]);
   const [atletasLocal, setAtletasLocal] = useState<AtletaJugador[]>([]);
   const [atletasVisitante, setAtletasVisitante] = useState<AtletaJugador[]>([]);
@@ -57,10 +73,7 @@ export default function EncuentrosPage() {
     return name.includes("fútbol") || name.includes("futbol");
   }
 
-  async function abrirCorreccionModal(p: Partido) {
-    setCorreccionModal({ partido: p, local: String(p.resultado_local ?? ""), visitante: String(p.resultado_visitante ?? "") });
-    setModalEventos(p.eventos?.map(e => ({ atleta_jugador_id: e.atleta_jugador_id ?? 0, tipo_evento: e.tipo_evento, minuto: e.minuto || undefined, descripcion: e.descripcion || undefined })) ?? []);
-    setNuevoEvento({ equipoSelect: "local", atletaId: 0, tipo: "gol", minuto: "", descripcion: "" });
+  async function cargarAtletasParaModal(p: Partido) {
     setAtletasLocal([]); setAtletasVisitante([]);
     setCargandoAtletasModal(true);
     try {
@@ -74,6 +87,20 @@ export default function EncuentrosPage() {
     finally { setCargandoAtletasModal(false); }
   }
 
+  async function abrirCorreccionModal(p: Partido) {
+    setCorreccionModal({ partido: p, local: String(p.resultado_local ?? ""), visitante: String(p.resultado_visitante ?? "") });
+    setModalEventos(p.eventos?.map(e => ({ atleta_jugador_id: e.atleta_jugador_id ?? 0, tipo_evento: e.tipo_evento, minuto: e.minuto || undefined, descripcion: e.descripcion || undefined })) ?? []);
+    setNuevoEvento({ equipoSelect: "local", atletaId: 0, tipo: "gol", minuto: "", descripcion: "" });
+    await cargarAtletasParaModal(p);
+  }
+
+  async function abrirRegistroModal(p: Partido) {
+    setRegistroModal({ partido: p, local: "", visitante: "" });
+    setModalEventos([]);
+    setNuevoEvento({ equipoSelect: "local", atletaId: 0, tipo: "gol", minuto: "", descripcion: "" });
+    await cargarAtletasParaModal(p);
+  }
+
   function handleEquipoSelectChange(eq: "local" | "visitante") {
     const list = eq === "local" ? atletasLocal : atletasVisitante;
     setNuevoEvento(prev => ({ ...prev, equipoSelect: eq, atletaId: list.length > 0 ? list[0].id : 0 }));
@@ -82,10 +109,24 @@ export default function EncuentrosPage() {
   function agregarEvento() {
     if (nuevoEvento.atletaId === 0) { alert("Por favor, selecciona un jugador."); return; }
     setModalEventos(prev => [...prev, { atleta_jugador_id: nuevoEvento.atletaId, tipo_evento: nuevoEvento.tipo, minuto: nuevoEvento.minuto ? Number(nuevoEvento.minuto) : null, descripcion: nuevoEvento.descripcion || null }]);
+    // Gol → incrementa marcador automáticamente en registro
+    if (nuevoEvento.tipo === "gol" && registroModal) {
+      if (nuevoEvento.equipoSelect === "local") setRegistroModal(m => m ? { ...m, local: String(Number(m.local || 0) + 1) } : null);
+      else setRegistroModal(m => m ? { ...m, visitante: String(Number(m.visitante || 0) + 1) } : null);
+    }
     setNuevoEvento(prev => ({ ...prev, minuto: "", descripcion: "" }));
   }
 
-  function eliminarEvento(index: number) { setModalEventos(prev => prev.filter((_, i) => i !== index)); }
+  function eliminarEvento(index: number) {
+    const ev = modalEventos[index];
+    // Gol → decrementa marcador automáticamente en registro
+    if (ev.tipo_evento === "gol" && registroModal) {
+      const esLocal = atletasLocal.some(a => a.id === ev.atleta_jugador_id);
+      if (esLocal) setRegistroModal(m => m ? { ...m, local: String(Math.max(0, Number(m.local || 0) - 1)) } : null);
+      else setRegistroModal(m => m ? { ...m, visitante: String(Math.max(0, Number(m.visitante || 0) - 1)) } : null);
+    }
+    setModalEventos(prev => prev.filter((_, i) => i !== index));
+  }
 
   function getNombreJugador(atletaId: number): string {
     const a = [...atletasLocal, ...atletasVisitante].find(item => item.id === atletaId);
@@ -127,7 +168,31 @@ export default function EncuentrosPage() {
     finally { setGuardando(false); }
   }
 
+  async function guardarRegistro() {
+    if (!registroModal) return;
+    const esFut = esFutbolDelPartido(registroModal.partido);
+    let rl: number, rv: number;
+    if (esFut) {
+      rl = modalEventos.filter(e => e.tipo_evento === "gol" && atletasLocal.some(a => a.id === e.atleta_jugador_id)).length;
+      rv = modalEventos.filter(e => e.tipo_evento === "gol" && atletasVisitante.some(a => a.id === e.atleta_jugador_id)).length;
+    } else {
+      if (registroModal.local === "" || registroModal.visitante === "") { alert("Ingresa el marcador final del partido."); return; }
+      rl = Number(registroModal.local);
+      rv = Number(registroModal.visitante);
+      if (rl < 0 || rv < 0) { alert("El marcador no puede ser negativo."); return; }
+    }
+    setGuardando(true);
+    try { await api.setResultado(registroModal.partido.id, { resultado_local: rl, resultado_visitante: rv, eventos: modalEventos }); setRegistroModal(null); await cargar(); }
+    catch (e) { alert(e instanceof Error ? e.message : "Error al guardar resultado"); }
+    finally { setGuardando(false); }
+  }
+
   const torneosFiltrados = deporteFiltro ? torneos.filter(t => t.deporte_id === deporteFiltro) : torneos;
+  const torneosSuspendidosIds = new Set(torneos.filter(t => t.estado === "suspendido").map(t => t.id));
+  const partidosActivos = partidos.filter(p => {
+    const torneo = torneos.find(t => t.nombre === p.torneo_nombre);
+    return torneo && !torneosSuspendidosIds.has(torneo.id);
+  });
 
   const estadoDot: Record<EstadoPartido, string> = {
     programado: "bg-blue-400",
@@ -147,7 +212,7 @@ export default function EncuentrosPage() {
         <div>
           <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
           <h1 className="text-2xl font-bold text-gray-900 mt-1">Encuentros</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Programación y seguimiento de partidos por deporte.</p>
+          <p className="text-sm text-gray-400 mt-0.5">Programación, registro de resultados y seguimiento de partidos.</p>
         </div>
         <button onClick={cargar} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition">
           <RefreshCw className="w-4 h-4" />Actualizar
@@ -171,28 +236,27 @@ export default function EncuentrosPage() {
         <select value={torneoFiltro ?? ""} onChange={e => setTorneoFiltro(e.target.value ? Number(e.target.value) : undefined)}
           className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium text-gray-700">
           <option value="">Todos los torneos</option>
-          {torneosFiltrados.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+          {torneosFiltrados.filter(t => t.estado !== "suspendido").map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
         </select>
         <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value as EstadoPartido | "")}
           className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium text-gray-700">
           <option value="">Todos los estados</option>
           {(["programado", "en_curso", "finalizado"] as EstadoPartido[]).map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
         </select>
-        {!cargando && <span className="ml-auto text-xs text-gray-400">{partidos.length} encuentro{partidos.length !== 1 ? "s" : ""}</span>}
+        {!cargando && <span className="ml-auto text-xs text-gray-400">{partidosActivos.length} encuentro{partidosActivos.length !== 1 ? "s" : ""}</span>}
       </div>
 
       {/* Lista por torneo (accordion) */}
       {cargando ? (
         <div className="flex items-center justify-center h-40 text-sm text-gray-400">Cargando...</div>
-      ) : partidos.length === 0 ? (
+      ) : partidosActivos.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-40 text-gray-300 gap-2">
           <Calendar className="w-8 h-8" strokeWidth={1.5} />
           <p className="text-sm text-gray-400">Sin partidos para los filtros seleccionados</p>
         </div>
       ) : (() => {
-        // Agrupar por torneo_nombre
         const porTorneo = new Map<string, Partido[]>();
-        for (const p of partidos) {
+        for (const p of partidosActivos) {
           const k = p.torneo_nombre ?? "—";
           if (!porTorneo.has(k)) porTorneo.set(k, []);
           porTorneo.get(k)!.push(p);
@@ -209,13 +273,13 @@ export default function EncuentrosPage() {
 
               return (
                 <div key={torneoNombre} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                  {/* Accordion header */}
                   <button
                     onClick={() => {
                       if (soloUnTorneo) return;
                       setExpandidos(prev => {
                         const n = new Set(prev);
-                        n.has(torneoNombre) ? n.delete(torneoNombre) : n.add(torneoNombre);
+                        if (n.has(torneoNombre)) n.delete(torneoNombre);
+                        else n.add(torneoNombre);
                         return n;
                       });
                     }}
@@ -235,17 +299,14 @@ export default function EncuentrosPage() {
                     )}
                   </button>
 
-                  {/* Rows */}
                   {abierto && (
                     <div className="border-t border-gray-100 divide-y divide-gray-50">
                       {ps.map(p => (
                         <div key={p.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50/60 transition-colors">
-                          {/* Fase */}
                           <span className="w-20 shrink-0 text-[10px] font-bold text-gray-400 uppercase truncate">
                             {p.ronda ?? `J${p.jornada}`}
                           </span>
 
-                          {/* Local — Score — Visitante */}
                           <div className="flex-1 min-w-0 flex items-center gap-2">
                             <span className="flex-1 text-right text-sm font-semibold text-gray-800 truncate">{p.local_nombre}</span>
                             <div className="shrink-0">
@@ -268,14 +329,12 @@ export default function EncuentrosPage() {
                             <span className="flex-1 text-left text-sm font-semibold text-gray-800 truncate">{p.visitante_nombre}</span>
                           </div>
 
-                          {/* Estado */}
                           <div className="shrink-0 flex items-center gap-1.5 w-24">
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${estadoDot[p.estado]}`} />
                             <span className={`text-xs font-semibold ${estadoText[p.estado]}`}>{ESTADO_LABEL[p.estado]}</span>
                             {p.es_walkover && <span className="text-[9px] font-bold text-gray-400 bg-gray-100 px-1 rounded">WO</span>}
                           </div>
 
-                          {/* Fecha */}
                           <div className="shrink-0 w-32 hidden lg:block">
                             {p.fecha_hora ? (
                               <p className="text-[11px] text-gray-500 truncate">
@@ -287,8 +346,13 @@ export default function EncuentrosPage() {
                             {p.reprogramado_en && <RotateCcw className="w-3 h-3 text-amber-400 inline-block ml-1" />}
                           </div>
 
-                          {/* Acciones */}
                           <div className="shrink-0 flex items-center gap-1">
+                            {(p.estado === "programado" || p.estado === "en_curso") && (
+                              <button onClick={() => abrirRegistroModal(p)}
+                                className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition" title="Registrar resultado">
+                                <Swords className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {p.estado === "finalizado" && (
                               <button onClick={() => abrirCorreccionModal(p)}
                                 className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition" title="Corregir resultado">
@@ -355,7 +419,7 @@ export default function EncuentrosPage() {
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500">
                   {(["programado", "en_curso"] as EstadoPartido[]).map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
                 </select>
-                <p className="mt-1 text-xs text-gray-400">Para finalizar y registrar estadísticas usa la página de Resultados.</p>
+                <p className="mt-1 text-xs text-gray-400">Para finalizar usa el botón de registrar resultado en la lista de partidos.</p>
               </div>
               {editModal.partido.reprogramado_en && editModal.partido.motivo_reprogramacion && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
@@ -420,8 +484,8 @@ export default function EncuentrosPage() {
                       <label className="text-[11px] font-bold text-gray-400 uppercase">Equipo</label>
                       <select value={nuevoEvento.equipoSelect} onChange={e => handleEquipoSelectChange(e.target.value as "local" | "visitante")}
                         className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        <option value="local">Local</option>
-                        <option value="visitante">Visitante</option>
+                        <option value="local">{correccionModal.partido.local_nombre}</option>
+                        <option value="visitante">{correccionModal.partido.visitante_nombre}</option>
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -496,6 +560,202 @@ export default function EncuentrosPage() {
           </div>
         </div>
       )}
+
+      {/* Modal registro de resultado */}
+      {registroModal && (() => {
+        const esFut = esFutbolDelPartido(registroModal.partido);
+        const golesL = modalEventos.filter(e => e.tipo_evento === "gol" && atletasLocal.some(a => a.id === e.atleta_jugador_id)).length;
+        const golesV = modalEventos.filter(e => e.tipo_evento === "gol" && atletasVisitante.some(a => a.id === e.atleta_jugador_id)).length;
+        const tiposEvento = esFut
+          ? [
+              { key: "gol",              icon: "⚽", label: "Gol",     active: "bg-emerald-600 text-white border-emerald-600" },
+              { key: "tarjeta_amarilla", icon: "🟨", label: "T. Amarilla", active: "bg-amber-400 text-white border-amber-400" },
+              { key: "tarjeta_roja",     icon: "🟥", label: "T. Roja", active: "bg-red-600 text-white border-red-600" },
+            ]
+          : [{ key: "puntos", icon: "🏀", label: "Puntos", active: "bg-blue-600 text-white border-blue-600" }];
+        const atletasActivos = nuevoEvento.equipoSelect === "local" ? atletasLocal : atletasVisitante;
+
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-8">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {registroModal.partido.local_nombre} vs {registroModal.partido.visitante_nombre}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {registroModal.partido.torneo_nombre} · {registroModal.partido.ronda ?? `Jornada ${registroModal.partido.jornada}`}
+                  </p>
+                </div>
+                <button onClick={() => setRegistroModal(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-5 max-h-[80vh] overflow-y-auto">
+                <div className="bg-gray-900 rounded-2xl px-5 py-4 flex items-center gap-3">
+                  <p className="flex-1 text-sm font-bold text-white text-right truncate leading-tight">
+                    {registroModal.partido.local_nombre}
+                    <span className="block text-[10px] font-normal text-white/40 uppercase tracking-wider">Local</span>
+                  </p>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <input
+                      type="number" min={0} max={99}
+                      value={esFut ? Math.max(Number(registroModal.local || 0), golesL) : registroModal.local}
+                      onChange={e => setRegistroModal(m => m ? { ...m, local: e.target.value.replace(/[^0-9]/g, "").slice(0, 2) } : null)}
+                      placeholder="0"
+                      className={scoreInputCls}
+                      disabled={esFut}
+                    />
+                    <span className="text-white/20 font-black text-2xl select-none">–</span>
+                    <input
+                      type="number" min={0} max={99}
+                      value={esFut ? Math.max(Number(registroModal.visitante || 0), golesV) : registroModal.visitante}
+                      onChange={e => setRegistroModal(m => m ? { ...m, visitante: e.target.value.replace(/[^0-9]/g, "").slice(0, 2) } : null)}
+                      placeholder="0"
+                      className={scoreInputCls}
+                      disabled={esFut}
+                    />
+                  </div>
+                  <p className="flex-1 text-sm font-bold text-white text-left truncate leading-tight">
+                    {registroModal.partido.visitante_nombre}
+                    <span className="block text-[10px] font-normal text-white/40 uppercase tracking-wider">Visitante</span>
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-bold text-gray-800">Eventos</span>
+                    <span className="text-xs text-gray-400">· opcional</span>
+                  </div>
+                  {cargandoAtletasModal ? (
+                    <div className="text-center py-6 text-sm text-gray-400 bg-gray-50 rounded-xl">Cargando jugadores...</div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                      <div className="flex gap-2">
+                        {(["local", "visitante"] as const).map(eq => (
+                          <button
+                            key={eq}
+                            onClick={() => handleEquipoSelectChange(eq)}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg border-2 transition ${
+                              nuevoEvento.equipoSelect === eq
+                                ? "bg-gray-900 text-white border-gray-900"
+                                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                            }`}
+                          >
+                            {eq === "local" ? registroModal.partido.local_nombre : registroModal.partido.visitante_nombre}
+                            <span className={`block text-[9px] uppercase tracking-widest font-semibold mt-0.5 ${nuevoEvento.equipoSelect === eq ? "text-white/50" : "text-gray-400"}`}>
+                              {eq}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        {tiposEvento.map(t => (
+                          <button
+                            key={t.key}
+                            onClick={() => setNuevoEvento(prev => ({ ...prev, tipo: t.key }))}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg border-2 transition flex items-center justify-center gap-1 ${
+                              nuevoEvento.tipo === t.key
+                                ? t.active
+                                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                            }`}
+                          >
+                            <span>{t.icon}</span>
+                            <span>{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <select
+                        value={nuevoEvento.atletaId}
+                        onChange={e => setNuevoEvento(prev => ({ ...prev, atletaId: Number(e.target.value) }))}
+                        className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      >
+                        {atletasActivos.map(a => (
+                          <option key={a.id} value={a.id}>
+                            {a.nombre_completo}{a.numero_camiseta ? ` · #${a.numero_camiseta}` : ""}{a.posicion_rol ? ` · ${a.posicion_rol}` : ""}
+                          </option>
+                        ))}
+                        {atletasActivos.length === 0 && <option value="0">Sin jugadores registrados</option>}
+                      </select>
+                      <div className="flex gap-2">
+                        <input
+                          type="number" min={1} max={120} placeholder="Min."
+                          value={nuevoEvento.minuto}
+                          onChange={e => setNuevoEvento(prev => ({ ...prev, minuto: e.target.value }))}
+                          className="w-16 text-xs border border-gray-200 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <input
+                          type="text" maxLength={60} placeholder="Nota opcional (Ej. Tiro libre)"
+                          value={nuevoEvento.descripcion}
+                          onChange={e => setNuevoEvento(prev => ({ ...prev, descripcion: e.target.value }))}
+                          className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        />
+                        <button
+                          onClick={agregarEvento}
+                          className="shrink-0 inline-flex items-center gap-1 px-3 py-2 bg-gray-900 hover:bg-gray-700 text-white text-xs font-bold rounded-lg transition"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Agregar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {modalEventos.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Eventos agregados · {modalEventos.length}
+                    </p>
+                    {modalEventos.map((ev, idx) => {
+                      const info = TIPO_INFO[ev.tipo_evento] ?? { label: ev.tipo_evento, bg: "bg-gray-400 text-white" };
+                      return (
+                        <div key={idx} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
+                          <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-md ${info.bg}`}>{info.label}</span>
+                          <span className="flex-1 text-xs font-semibold text-gray-900 truncate">{getNombreJugador(ev.atleta_jugador_id)}</span>
+                          {ev.minuto != null && <span className="text-[11px] text-gray-500 shrink-0 font-medium">{ev.minuto}&apos;</span>}
+                          {ev.descripcion && <span className="text-[11px] text-gray-400 italic shrink-0 hidden sm:block">{ev.descripcion}</span>}
+                          <button
+                            onClick={() => eliminarEvento(idx)}
+                            className="shrink-0 p-1 rounded text-gray-300 hover:text-red-500 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-400">
+                  {esFut
+                    ? <span className="text-emerald-600 font-semibold">✓ {golesL} – {golesV} · {modalEventos.length} evento{modalEventos.length !== 1 ? "s" : ""}</span>
+                    : (registroModal.local !== "" && registroModal.visitante !== ""
+                      ? <span className="text-emerald-600 font-semibold">✓ {registroModal.local} – {registroModal.visitante} · {modalEventos.length} evento{modalEventos.length !== 1 ? "s" : ""}</span>
+                      : "Ingresa el marcador para continuar")
+                  }
+                </span>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => setRegistroModal(null)}
+                    className="px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={guardarRegistro}
+                    disabled={guardando || (!esFut && (registroModal.local === "" || registroModal.visitante === ""))}
+                    className="px-5 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-200 disabled:text-gray-400 rounded-lg transition inline-flex items-center gap-2 shadow-sm"
+                  >
+                    <Save className="w-4 h-4" />
+                    {guardando ? "Guardando..." : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

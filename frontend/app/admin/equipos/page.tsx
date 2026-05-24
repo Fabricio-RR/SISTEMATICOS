@@ -437,7 +437,7 @@ export default function EquiposPage() {
               const insc = inscripciones.find(i => {
                 if (i.club_equipo_id !== eq.id || i.estado === "retirado") return false;
                 const t = torneos.find(tor => tor.id === i.torneo_id);
-                return t && t.estado !== "finalizado";
+                return t && t.estado !== "finalizado" && t.estado !== "suspendido";
               });
               const torneoAsoc = insc ? torneos.find(t => t.id === insc.torneo_id) : null;
               return (

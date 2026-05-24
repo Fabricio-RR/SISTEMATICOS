@@ -5,7 +5,7 @@ import {
   RefreshCw, Trash2, Plus, Filter, AlertCircle, LogOut,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Inscripcion, Torneo, ClubEquipo, EstadoInscripcion, InscripcionCreate } from "@/types/api";
+import type { Inscripcion, Torneo, ClubEquipo, EstadoInscripcion, InscripcionCreate, Partido } from "@/types/api";
 
 type Tab = EstadoInscripcion;
 
@@ -27,6 +27,7 @@ export default function InscripcionesPage() {
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [equipos, setEquipos] = useState<ClubEquipo[]>([]);
+  const [partidos, setPartidos] = useState<Partido[]>([]);
   const [tab, setTab] = useState<Tab>("pendiente");
   const [torneoFiltro, setTorneoFiltro] = useState<number | undefined>();
   const [busqueda, setBusqueda] = useState("");
@@ -40,14 +41,16 @@ export default function InscripcionesPage() {
     setCargando(true);
     setError("");
     try {
-      const [insc, torn, eq] = await Promise.all([
+      const [insc, torn, eq, part] = await Promise.all([
         api.getInscripciones(),
         api.getTorneos(),
         api.getEquipos(),
+        api.getPartidos(),
       ]);
       setInscripciones(insc);
       setTorneos(torn);
       setEquipos(eq);
+      setPartidos(part);
     } catch {
       setError("No se pudo cargar las inscripciones.");
     } finally {
@@ -124,9 +127,11 @@ export default function InscripcionesPage() {
 
   const torneosAbiertos = torneos.filter((t) => t.estado === "inscripcion_abierta");
   const equiposAprobados = equipos.filter((e) => e.estado === "aprobado");
-  const inscripcionesFiltradas = torneoFiltro
+  const torneosActivosIds = new Set(torneos.filter((t) => t.estado !== "suspendido").map((t) => t.id));
+  const inscripcionesFiltradas = (torneoFiltro
     ? inscripciones.filter((i) => i.torneo_id === torneoFiltro)
-    : inscripciones;
+    : inscripciones
+  ).filter((i) => torneosActivosIds.has(i.torneo_id));
   const torneoSeleccionado = torneos.find((t) => t.id === form.torneo_id);
   const equiposCompatibles = torneoSeleccionado
     ? equiposAprobados.filter((e) => e.deporte_id === torneoSeleccionado.deporte_id)
@@ -140,9 +145,28 @@ export default function InscripcionesPage() {
     ? equiposCompatibles.filter((e) => !equiposYaInscritos.has(e.id))
     : equiposCompatibles;
 
+  // IDs de inscripciones con partidos pendientes (programado o en_curso)
+  const inscripcionesConPartidos = new Set<number>();
+  partidos.forEach((p) => {
+    if (p.estado === "programado" || p.estado === "en_curso") {
+      if (p.inscripcion_local_id != null) inscripcionesConPartidos.add(p.inscripcion_local_id);
+      if (p.inscripcion_visitante_id != null) inscripcionesConPartidos.add(p.inscripcion_visitante_id);
+    }
+  });
+
+  // Torneos que aún no han comenzado (sin partidos todavía)
+  const torneosSinComenzar = new Set(
+    torneos.filter((t) => ["inscripcion_abierta", "inscripcion_cerrada", "en_sorteo"].includes(t.estado)).map((t) => t.id)
+  );
+
   const counts: Record<Tab, number> = {
     pendiente: inscripcionesFiltradas.filter((i) => i.estado === "pendiente").length,
-    aprobado: inscripcionesFiltradas.filter((i) => i.estado === "aprobado").length,
+    aprobado: inscripcionesFiltradas.filter((i) => {
+      if (i.estado !== "aprobado") return false;
+      const tienePartidosPendientes = inscripcionesConPartidos.has(i.id);
+      const torneoSinComenzar = torneosSinComenzar.has(i.torneo_id);
+      return tienePartidosPendientes || torneoSinComenzar;
+    }).length,
     rechazado: inscripcionesFiltradas.filter((i) => i.estado === "rechazado").length,
     retirado: inscripcionesFiltradas.filter((i) => i.estado === "retirado").length,
   };
@@ -150,6 +174,12 @@ export default function InscripcionesPage() {
   const lista = inscripcionesFiltradas
     .filter((i) => i.estado === tab)
     .filter((i) => {
+      // En tab "aprobado", ocultar equipos eliminados (sin partidos pendientes y torneo ya en curso/finalizado)
+      if (tab === "aprobado") {
+        const tienePartidosPendientes = inscripcionesConPartidos.has(i.id);
+        const torneoSinComenzar = torneosSinComenzar.has(i.torneo_id);
+        if (!tienePartidosPendientes && !torneoSinComenzar) return false;
+      }
       const texto = `${i.club_equipo?.nombre_equipo ?? ""} ${i.torneo?.nombre ?? ""}`.toLowerCase();
       return texto.includes(busqueda.toLowerCase());
     });
@@ -225,7 +255,7 @@ export default function InscripcionesPage() {
             className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             <option value="">Todos los torneos</option>
-            {torneos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+            {torneos.filter((t) => t.estado !== "suspendido").map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
           </select>
         </div>
       </div>

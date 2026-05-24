@@ -127,6 +127,22 @@ export default function TorneosPage() {
     }
   }
 
+  async function handleReactivar(id: number) {
+    setAccionando(id);
+    setError("");
+    try {
+      await api.reactivarTorneo(id);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al reactivar el torneo.");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } finally {
+      setAccionando(null);
+    }
+  }
+
   async function handleSuspender(id: number) {
     setAccionando(id);
     setError("");
@@ -324,6 +340,17 @@ export default function TorneosPage() {
                           );
                         })()}
 
+                        {t.estado === "suspendido" && (
+                          <button
+                            onClick={() => handleReactivar(t.id)}
+                            disabled={accionando === t.id}
+                            title="Reactivar torneo"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition shadow-sm disabled:opacity-40"
+                          >
+                            <Play className="w-3.5 h-3.5 shrink-0" />
+                            Reactivar
+                          </button>
+                        )}
                         {t.estado !== "finalizado" && t.estado !== "suspendido" && (
                           <button
                             onClick={() => handleSuspender(t.id)}

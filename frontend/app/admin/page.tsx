@@ -1,54 +1,139 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Radio, Users, Calendar, Building2, Shuffle,
-  BarChart3, Clock, ArrowRight, Trophy, Dumbbell,
+  Radio, Users, Calendar, Trophy,
+  Building2, Shuffle, BarChart3,
+  Clock, ArrowRight, Edit3, UserPlus, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import type { AuditoriaEntry } from "@/types/api";
 
 interface Stats {
   deportes: number;
-  instituciones: number;
-  equipos: number;
   enCurso: number;
   programados: number;
   atletas: number;
 }
 
+function isImportant(entry: AuditoriaEntry): boolean {
+  if (entry.tabla_afectada === "partidos" && entry.accion === "UPDATE") return true;
+  if (entry.tabla_afectada === "inscripciones") return true;
+  if (entry.tabla_afectada === "usuarios" && entry.accion === "UPDATE") return true;
+  return false;
+}
+
+function formatActivity(entry: AuditoriaEntry): { icon: React.ReactNode; label: string; subtitle: string } {
+  const icons: Record<string, React.ReactNode> = {
+    INSERT: <UserPlus className="w-4 h-4 text-green-500" />,
+    UPDATE: <Edit3 className="w-4 h-4 text-amber-500" />,
+  };
+
+  const tablas: Record<string, string> = {
+    partidos: "Partido",
+    inscripciones: "Inscripción",
+    usuarios: "Usuario",
+  };
+
+  const accionLabel: Record<string, string> = {
+    INSERT: "creó",
+    UPDATE: "actualizó",
+  };
+
+  const tableLabel = tablas[entry.tabla_afectada] || entry.tabla_afectada;
+  const action = accionLabel[entry.accion] || entry.accion;
+
+  let subtitle = `${action} en ${tableLabel}`;
+  if (entry.usuario_nombre) {
+    subtitle = `${entry.usuario_nombre} ${subtitle}`;
+  }
+
+  let extraInfo = "";
+  if (entry.valor_nuevo) {
+    try {
+      const parsed = JSON.parse(entry.valor_nuevo);
+      if (typeof parsed === "object" && parsed !== null) {
+        const parts: string[] = [];
+        if (parsed.partido_id !== undefined) parts.push(`Partido ${parsed.partido_id}`);
+        if (parsed.inscripcion_id !== undefined) parts.push(`ID ${parsed.inscripcion_id}`);
+        if (parsed.usuario_id !== undefined) parts.push(`ID ${parsed.usuario_id}`);
+        if (parsed.torneo_id !== undefined) parts.push(`Torneo ${parsed.torneo_id}`);
+        if (parsed.estado !== undefined) parts.push(parsed.estado);
+        if (parsed.resultado_local !== undefined && parsed.resultado_visitante !== undefined) {
+          parts.push(`${parsed.resultado_local} - ${parsed.resultado_visitante}`);
+        }
+        if (parts.length > 0) extraInfo = parts.join(" · ");
+      }
+    } catch {
+      extraInfo = entry.valor_nuevo.length > 40 ? entry.valor_nuevo.slice(0, 40) + "..." : entry.valor_nuevo;
+    }
+  }
+
+  return {
+    icon: icons[entry.accion] || <FileText className="w-4 h-4 text-gray-400" />,
+    label: tableLabel,
+    subtitle: extraInfo || subtitle,
+  };
+}
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr + "Z").getTime();
+  const diff = Math.floor((now - then) / 1000);
+  if (diff < 60) return "ahora";
+  if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
+  return `hace ${Math.floor(diff / 86400)} d`;
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats>({
-    deportes: 0, instituciones: 0, equipos: 0,
-    enCurso: 0, programados: 0, atletas: 0,
+    deportes: 0, enCurso: 0, programados: 0, atletas: 0,
   });
+  const [actividad, setActividad] = useState<AuditoriaEntry[]>([]);
   const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(true);
+  const errorRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    Promise.all([
-      api.getDeportes(),
-      api.getInstituciones(),
-      api.getEquipos(),
-      api.getPartidos({ estado: "en_curso" }),
-      api.getPartidos({ estado: "programado" }),
-      api.getAtletas(),
-    ])
-      .then(([deportes, instituciones, equipos, enCurso, programados, atletas]) => {
-        setStats({
-          deportes: deportes.length,
-          instituciones: instituciones.length,
-          equipos: equipos.length,
-          enCurso: enCurso.length,
-          programados: programados.length,
-          atletas: atletas.length,
-        });
-      })
-      .catch(() =>
-        setError("No se pudo conectar con el servidor. Verifica que el backend esté activo.")
-      );
+  const fetchData = useCallback(async () => {
+    try {
+      const [enCurso, programados, atletas, deportes, auditoriaLogs] = await Promise.all([
+        api.getPartidos({ torneo_estado: "en_curso" }),
+        api.getPartidos({ estado: "programado" }),
+        api.getAtletas(),
+        api.getDeportes(),
+        api.getAuditoria(10),
+      ]);
+      setStats({
+        deportes: deportes.length,
+        enCurso: enCurso.length,
+        programados: programados.length,
+        atletas: atletas.length,
+      });
+      setActividad(auditoriaLogs);
+      setError("");
+      errorRef.current = false;
+    } catch {
+      if (!errorRef.current) {
+        setError("No se pudo conectar con el servidor. Verifica que el backend esté activo.");
+        errorRef.current = true;
+      }
+    } finally {
+      setCargando(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchData();
+    intervalRef.current = setInterval(fetchData, 30_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [fetchData]);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
           {error}
@@ -69,8 +154,8 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {/* Stats principales */}
-      <div className="grid grid-cols-3 gap-5">
+      {/* Stats — una sola fila con las 4 métricas clave */}
+      <div className="grid grid-cols-4 gap-5">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="w-9 h-9 rounded-lg bg-red-600 flex items-center justify-center">
@@ -83,126 +168,116 @@ export default function AdminDashboard() {
           </div>
           <p className="text-3xl font-bold text-gray-900">{stats.enCurso}</p>
           <p className="text-sm font-medium text-gray-500 mt-1">Partidos en curso</p>
-          <p className="text-xs text-gray-300 mt-0.5">Activos en este momento</p>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="mb-4">
-            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-              <Users className="w-4 h-4 text-gray-500" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.atletas}</p>
-          <p className="text-sm font-medium text-gray-500 mt-1">Atletas registrados</p>
-          <p className="text-xs text-gray-300 mt-0.5">En el sistema</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="mb-4">
-            <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-              <Calendar className="w-4 h-4 text-gray-500" />
+            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-amber-600" />
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900">{stats.programados}</p>
           <p className="text-sm font-medium text-gray-500 mt-1">Encuentros pendientes</p>
-          <p className="text-xs text-gray-300 mt-0.5">Por disputar</p>
         </div>
-      </div>
 
-      {/* Stats secundarias */}
-      <div className="grid grid-cols-3 gap-5">
-        <Link href="/admin/deportes" className="bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-              <Trophy className="w-4 h-4 text-gray-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{stats.deportes}</p>
-              <p className="text-xs text-gray-400">Deportes activos</p>
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <div className="mb-4">
+            <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Users className="w-4 h-4 text-blue-600" />
             </div>
           </div>
-        </Link>
-        <Link href="/admin/instituciones" className="bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-gray-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{stats.instituciones}</p>
-              <p className="text-xs text-gray-400">Instituciones</p>
-            </div>
-          </div>
-        </Link>
-        <Link href="/admin/equipos" className="bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
-              <Dumbbell className="w-4 h-4 text-gray-400" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{stats.equipos}</p>
-              <p className="text-xs text-gray-400">Equipos</p>
+          <p className="text-3xl font-bold text-gray-900">{stats.atletas}</p>
+          <p className="text-sm font-medium text-gray-500 mt-1">Atletas registrados</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <div className="mb-4">
+            <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center">
+              <Trophy className="w-4 h-4 text-green-600" />
             </div>
           </div>
-        </Link>
+          <p className="text-3xl font-bold text-gray-900">{stats.deportes}</p>
+          <p className="text-sm font-medium text-gray-500 mt-1">Deportes activos</p>
+        </div>
       </div>
 
       {/* Accesos rápidos */}
-      <div>
-        <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-4">Accesos rápidos</p>
-        <div className="grid grid-cols-3 gap-5">
-          {[
-            {
-              icon: Building2,
-              titulo: "Gestión de Instituciones",
-              desc: "Inscribe colegios, universidades y clubes. Gestiona los rosters.",
-              link: "/admin/instituciones",
-              cta: "Abrir consola",
-            },
-            {
-              icon: Shuffle,
-              titulo: "Organizador de Fixtures",
-              desc: "Emparejamientos, sorteos automatizados y gestión de horarios.",
-              link: "/admin/sorteos",
-              cta: "Iniciar organizador",
-            },
-            {
-              icon: BarChart3,
-              titulo: "Resultados y Estadísticas",
-              desc: "Ingreso de puntajes en tiempo real y tablas de posiciones.",
-              link: "/admin/resultados",
-              cta: "Ver estadísticas",
-            },
-          ].map(({ icon: Icon, titulo, desc, link, cta }) => (
-            <Link
-              key={link}
-              href={link}
-              className="group bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all"
-            >
-              <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center mb-4">
-                <Icon className="w-4 h-4 text-red-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 text-sm">{titulo}</h3>
-              <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{desc}</p>
-              <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 group-hover:gap-2 transition-all">
-                {cta}
-                <ArrowRight className="w-3 h-3" />
-              </span>
-            </Link>
-          ))}
-        </div>
+      <div className="grid grid-cols-3 gap-5">
+        {[
+          {
+            icon: Building2,
+            titulo: "Gestión de Instituciones",
+            desc: "Inscribe colegios, universidades y clubes. Gestiona los rosters.",
+            link: "/admin/instituciones",
+            cta: "Abrir consola",
+          },
+          {
+            icon: Shuffle,
+            titulo: "Organizador de Fixtures",
+            desc: "Emparejamientos, sorteos automatizados y gestión de horarios.",
+            link: "/admin/sorteos",
+            cta: "Iniciar organizador",
+          },
+          {
+            icon: BarChart3,
+            titulo: "Resultados y Estadísticas",
+            desc: "Ingreso de puntajes en tiempo real y tablas de posiciones.",
+            link: "/admin/resultados",
+            cta: "Ver estadísticas",
+          },
+        ].map(({ icon: Icon, titulo, desc, link, cta }) => (
+          <Link
+            key={link}
+            href={link}
+            className="group bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all"
+          >
+            <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center mb-4">
+              <Icon className="w-4 h-4 text-red-600" />
+            </div>
+            <h3 className="font-semibold text-gray-900 text-sm">{titulo}</h3>
+            <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{desc}</p>
+            <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 group-hover:gap-2 transition-all">
+              {cta}
+              <ArrowRight className="w-3 h-3" />
+            </span>
+          </Link>
+        ))}
       </div>
 
-      {/* Actividad reciente */}
+      {/* Actividad reciente — solo lo importante */}
       <div className="bg-white rounded-xl border border-gray-100">
         <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Actividad reciente</h2>
-          <span className="text-xs text-gray-400">Hoy</span>
+          {cargando && (
+            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+          )}
         </div>
-        <div className="flex flex-col items-center justify-center py-14">
-          <Clock className="w-8 h-8 text-gray-200 mb-3" strokeWidth={1.5} />
-          <p className="text-sm font-medium text-gray-400">Sin actividad reciente</p>
-          <p className="text-xs text-gray-300 mt-1">El log de auditoría estará disponible próximamente</p>
-        </div>
+
+        {actividad.filter(isImportant).length === 0 && !cargando ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Clock className="w-8 h-8 text-gray-200 mb-3" strokeWidth={1.5} />
+            <p className="text-sm font-medium text-gray-400">Sin actividad reciente</p>
+            <p className="text-xs text-gray-300 mt-1">Los cambios en el sistema aparecerán aquí</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {actividad.filter(isImportant).slice(0, 8).map((entry) => {
+              const { icon, label, subtitle } = formatActivity(entry);
+              return (
+                <div key={entry.id} className="flex items-center gap-3 px-6 py-3.5">
+                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                    {icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-700 truncate">{label}</p>
+                    <p className="text-xs text-gray-400 truncate">{subtitle}</p>
+                  </div>
+                  <span className="text-xs text-gray-300 shrink-0">{relativeTime(entry.creado_en)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -63,7 +63,26 @@ def suspender(id: int, db: Session = Depends(get_db), _: Usuario = Depends(requi
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
     if torneo.estado == "finalizado":
         raise HTTPException(status_code=400, detail="No se puede suspender un torneo finalizado.")
+    if torneo.estado == "suspendido":
+        raise HTTPException(status_code=400, detail="El torneo ya está suspendido.")
+    torneo.estado_previo = torneo.estado
     torneo.estado = "suspendido"
+    db.commit()
+    db.refresh(torneo)
+    return torneo
+
+
+@router.patch("/{id}/reactivar", response_model=TorneoOut)
+def reactivar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    torneo = db.query(Torneo).filter(Torneo.id == id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado != "suspendido":
+        raise HTTPException(status_code=400, detail="El torneo no está suspendido.")
+    if not torneo.estado_previo:
+        raise HTTPException(status_code=400, detail="No hay estado anterior registrado. Contacta al administrador del sistema.")
+    torneo.estado = torneo.estado_previo
+    torneo.estado_previo = None
     db.commit()
     db.refresh(torneo)
     return torneo

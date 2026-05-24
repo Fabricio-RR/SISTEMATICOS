@@ -23,7 +23,8 @@ class Torneo(Base):
     nombre: Mapped[str] = mapped_column(String(150))
     formato: Mapped[str] = mapped_column(String(30), default="liga")  # liga, eliminacion_simple, grupos
     temporada: Mapped[str] = mapped_column(String(20))
-    estado: Mapped[str] = mapped_column(String(30), default="inscripcion_abierta")  # inscripcion_abierta, inscripcion_cerrada, en_sorteo, en_curso, finalizado, suspendido
+    estado: Mapped[str] = mapped_column(String(30), default="inscripcion_abierta")
+    estado_previo: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     deporte: Mapped["Deporte"] = relationship("Deporte", back_populates="torneos")
