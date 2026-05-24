@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Integer, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -11,6 +11,10 @@ class AtletaJugador(Base):
             "club_equipo_id",
             "documento_identidad",
             name="uq_atleta_equipo_documento",
+        ),
+        CheckConstraint(
+            "estado IN ('activo', 'inactivo', 'suspendido')",
+            name="ck_atleta_estado",
         ),
     )
 

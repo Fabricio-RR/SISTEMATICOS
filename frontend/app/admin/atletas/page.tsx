@@ -26,6 +26,7 @@ export default function AtletasAdminPage() {
   const [form, setForm] = useState({ club_equipo_id: 0, nombre_completo: "", numero_camiseta: "", posicion_rol: "", documento_identidad: "" });
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
+  const [eliminando, setEliminando] = useState<number | null>(null);
   const [editStats, setEditStats] = useState<Record<number, StatEdit>>({});
   const [guardandoStat, setGuardandoStat] = useState<number | null>(null);
   const [expandido, setExpandido] = useState<Set<number>>(new Set());
@@ -77,9 +78,11 @@ export default function AtletasAdminPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("¿Eliminar este atleta?")) return;
+    setEliminando(id);
+    setError("");
     try { await api.deleteAtleta(id); await cargar(); }
-    catch { setError("No se pudo eliminar el atleta."); }
+    catch (err) { setError(err instanceof Error ? err.message : "No se pudo eliminar el atleta."); }
+    finally { setEliminando(null); }
   }
 
   async function guardarStat(atleta: AtletaJugador) {
@@ -187,7 +190,7 @@ export default function AtletasAdminPage() {
                 {guardandoStat === a.id ? "..." : "Guardar"}
               </button>
             )}
-            <button onClick={() => handleDelete(a.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+            <button onClick={() => handleDelete(a.id)} disabled={eliminando === a.id} className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>

@@ -29,3 +29,8 @@ class Usuario(Base):
     institucion: Mapped["Institucion | None"] = relationship("Institucion", back_populates="usuarios")
     auditorias: Mapped[list["Auditoria"]] = relationship("Auditoria", back_populates="usuario")
     partidos_arbitrados: Mapped[list["Partido"]] = relationship("Partido", back_populates="arbitro")
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        "RefreshToken",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+    )

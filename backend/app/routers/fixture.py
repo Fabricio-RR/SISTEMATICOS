@@ -15,6 +15,8 @@ from app.services.competition import (
     elimination_phase_name_from_size,
     next_elimination_phase_name,
 )
+from app.models.eventos_partido import EventoPartido
+from app.models.notificaciones import Notificacion
 
 router = APIRouter()
 
@@ -89,12 +91,24 @@ def generar(data: GenerarFixtureRequest, db: Session = Depends(get_db), _: Usuar
             detail=f"Ya existe un fixture con {fixtures_existentes} jornadas. Envía force=true para regenerarlo.",
         )
 
-    db.query(Partido).filter(
-        Partido.fixture_id.in_(
-            db.query(Fixture.id).filter(Fixture.torneo_id == data.torneo_id)
-        )
-    ).delete(synchronize_session=False)
-    db.query(Fixture).filter(Fixture.torneo_id == data.torneo_id).delete()
+    fixture_ids = [f.id for f in db.query(Fixture.id).filter(Fixture.torneo_id == data.torneo_id).all()]
+    if fixture_ids:
+        partido_ids = [p.id for p in db.query(Partido.id).filter(Partido.fixture_id.in_(fixture_ids)).all()]
+        if partido_ids:
+            db.query(EventoPartido).filter(EventoPartido.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Notificacion).filter(Notificacion.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Partido).filter(Partido.id.in_(partido_ids)).delete(synchronize_session=False)
+        db.query(Fixture).filter(Fixture.id.in_(fixture_ids)).delete(synchronize_session=False)
+
+    db.query(Inscripcion).filter(Inscripcion.torneo_id == data.torneo_id).update({
+        Inscripcion.puntos: 0,
+        Inscripcion.partidos_jugados: 0,
+        Inscripcion.partidos_ganados: 0,
+        Inscripcion.partidos_empatados: 0,
+        Inscripcion.partidos_perdidos: 0,
+        Inscripcion.goles_a_favor: 0,
+        Inscripcion.goles_en_contra: 0,
+    }, synchronize_session=False)
 
     jornadas = _round_robin([i.id for i in inscripciones])
     fixtures_creados = []
@@ -236,10 +250,22 @@ def generar_siguiente_fase(
 
 @router.delete("/{torneo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_fixture(torneo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    db.query(Partido).filter(
-        Partido.fixture_id.in_(
-            db.query(Fixture.id).filter(Fixture.torneo_id == torneo_id)
-        )
-    ).delete(synchronize_session=False)
-    db.query(Fixture).filter(Fixture.torneo_id == torneo_id).delete()
+    fixture_ids = [f.id for f in db.query(Fixture.id).filter(Fixture.torneo_id == torneo_id).all()]
+    if fixture_ids:
+        partido_ids = [p.id for p in db.query(Partido.id).filter(Partido.fixture_id.in_(fixture_ids)).all()]
+        if partido_ids:
+            db.query(EventoPartido).filter(EventoPartido.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Notificacion).filter(Notificacion.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Partido).filter(Partido.id.in_(partido_ids)).delete(synchronize_session=False)
+        db.query(Fixture).filter(Fixture.id.in_(fixture_ids)).delete(synchronize_session=False)
+
+    db.query(Inscripcion).filter(Inscripcion.torneo_id == torneo_id).update({
+        Inscripcion.puntos: 0,
+        Inscripcion.partidos_jugados: 0,
+        Inscripcion.partidos_ganados: 0,
+        Inscripcion.partidos_empatados: 0,
+        Inscripcion.partidos_perdidos: 0,
+        Inscripcion.goles_a_favor: 0,
+        Inscripcion.goles_en_contra: 0,
+    }, synchronize_session=False)
     db.commit()

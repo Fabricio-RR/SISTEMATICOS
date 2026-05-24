@@ -1,7 +1,12 @@
 {
-  "/admin/torneos/page": "app/admin/torneos/page.js",
+  "/admin/instituciones/page": "app/admin/instituciones/page.js",
+  "/admin/deportes/page": "app/admin/deportes/page.js",
   "/admin/equipos/page": "app/admin/equipos/page.js",
+  "/admin/torneos/page": "app/admin/torneos/page.js",
   "/admin/inscripciones/page": "app/admin/inscripciones/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/usuarios/page": "app/admin/usuarios/page.js",
   "/admin/encuentros/page": "app/admin/encuentros/page.js",
-  "/admin/page": "app/admin/page.js"
+  "/admin/sorteos/page": "app/admin/sorteos/page.js",
+  "/admin/resultados/page": "app/admin/resultados/page.js"
 }

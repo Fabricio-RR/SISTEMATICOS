@@ -41,7 +41,7 @@ export default function InscripcionesPage() {
     setError("");
     try {
       const [insc, torn, eq] = await Promise.all([
-        api.getInscripciones(torneoFiltro),
+        api.getInscripciones(),
         api.getTorneos(),
         api.getEquipos(),
       ]);
@@ -53,9 +53,26 @@ export default function InscripcionesPage() {
     } finally {
       setCargando(false);
     }
-  }, [torneoFiltro]);
+  }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    if (!form.torneo_id || !form.club_equipo_id) return;
+    const torneoSel = torneos.find((t) => t.id === form.torneo_id);
+    const equipoSel = equipos.find((e) => e.id === form.club_equipo_id);
+    const compatible = Boolean(
+      torneoSel
+      && equipoSel
+      && equipoSel.estado === "aprobado"
+      && equipoSel.deporte_id === torneoSel.deporte_id
+    );
+    const yaInscrito = inscripciones.some(
+      (i) => i.torneo_id === form.torneo_id && i.club_equipo_id === form.club_equipo_id
+    );
+    if (!compatible || yaInscrito) {
+      setForm((f) => ({ ...f, club_equipo_id: 0 }));
+    }
+  }, [form.torneo_id, form.club_equipo_id, torneos, equipos, inscripciones]);
 
   async function aprobar(id: number) {
     setAccion(id);
@@ -74,15 +91,14 @@ export default function InscripcionesPage() {
   }
 
   async function retirar(id: number) {
-    if (!confirm("¿Retirar este equipo del torneo? Los partidos pendientes se resolverán por W.O. (3-0).")) return;
     setAccion(id);
+    setError("");
     try { await api.retirarInscripcion(id); await cargar(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Error al retirar"); }
+    catch (e) { setError(e instanceof Error ? e.message : "Error al retirar"); }
     finally { setAccion(null); }
   }
 
   async function eliminar(id: number) {
-    if (!confirm("¿Eliminar esta inscripción?")) return;
     setAccion(id);
     setError("");
     try { await api.deleteInscripcion(id); await cargar(); }
@@ -91,28 +107,47 @@ export default function InscripcionesPage() {
   }
 
   async function crear() {
-    if (!form.torneo_id || !form.club_equipo_id) return;
+    if (!form.torneo_id || !form.club_equipo_id) {
+      setError("Selecciona torneo y equipo.");
+      return;
+    }
+    setError("");
     try {
       await api.createInscripcion(form);
       setShowModal(false);
       setForm({ torneo_id: 0, club_equipo_id: 0 });
       await cargar();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error al inscribir");
+      setError(e instanceof Error ? e.message : "Error al inscribir");
     }
   }
 
   const torneosAbiertos = torneos.filter((t) => t.estado === "inscripcion_abierta");
   const equiposAprobados = equipos.filter((e) => e.estado === "aprobado");
+  const inscripcionesFiltradas = torneoFiltro
+    ? inscripciones.filter((i) => i.torneo_id === torneoFiltro)
+    : inscripciones;
+  const torneoSeleccionado = torneos.find((t) => t.id === form.torneo_id);
+  const equiposCompatibles = torneoSeleccionado
+    ? equiposAprobados.filter((e) => e.deporte_id === torneoSeleccionado.deporte_id)
+    : equiposAprobados;
+  const equiposYaInscritos = new Set(
+    form.torneo_id
+      ? inscripciones.filter((i) => i.torneo_id === form.torneo_id).map((i) => i.club_equipo_id)
+      : []
+  );
+  const equiposDisponibles = form.torneo_id
+    ? equiposCompatibles.filter((e) => !equiposYaInscritos.has(e.id))
+    : equiposCompatibles;
 
   const counts: Record<Tab, number> = {
-    pendiente: inscripciones.filter((i) => i.estado === "pendiente").length,
-    aprobado: inscripciones.filter((i) => i.estado === "aprobado").length,
-    rechazado: inscripciones.filter((i) => i.estado === "rechazado").length,
-    retirado: inscripciones.filter((i) => i.estado === "retirado").length,
+    pendiente: inscripcionesFiltradas.filter((i) => i.estado === "pendiente").length,
+    aprobado: inscripcionesFiltradas.filter((i) => i.estado === "aprobado").length,
+    rechazado: inscripcionesFiltradas.filter((i) => i.estado === "rechazado").length,
+    retirado: inscripcionesFiltradas.filter((i) => i.estado === "retirado").length,
   };
 
-  const lista = inscripciones
+  const lista = inscripcionesFiltradas
     .filter((i) => i.estado === tab)
     .filter((i) => {
       const texto = `${i.club_equipo?.nombre_equipo ?? ""} ${i.torneo?.nombre ?? ""}`.toLowerCase();
@@ -293,11 +328,11 @@ export default function InscripcionesPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Torneo</label>
-                <select
-                  value={form.torneo_id || ""}
-                  onChange={(e) => setForm((f) => ({ ...f, torneo_id: Number(e.target.value) }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
+                  <select
+                    value={form.torneo_id || ""}
+                    onChange={(e) => setForm((f) => ({ ...f, torneo_id: Number(e.target.value), club_equipo_id: 0 }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
                   <option value="">Seleccionar torneo</option>
                   {torneosAbiertos.length === 0 && (
                     <option disabled value="">— No hay torneos con inscripción abierta —</option>
@@ -307,18 +342,20 @@ export default function InscripcionesPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Equipo</label>
-                <select
-                  value={form.club_equipo_id || ""}
-                  onChange={(e) => setForm((f) => ({ ...f, club_equipo_id: Number(e.target.value) }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                  <option value="">Seleccionar equipo</option>
-                  {equiposAprobados.length === 0 && (
-                    <option disabled value="">— No hay equipos aprobados —</option>
-                  )}
-                  {equiposAprobados.map((e) => <option key={e.id} value={e.id}>{e.nombre_equipo}</option>)}
-                </select>
-              </div>
+                  <select
+                    value={form.club_equipo_id || ""}
+                    onChange={(e) => setForm((f) => ({ ...f, club_equipo_id: Number(e.target.value) }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="">Seleccionar equipo</option>
+                    {equiposDisponibles.length === 0 && (
+                      <option disabled value="">
+                        {form.torneo_id ? "— No hay equipos compatibles disponibles —" : "— Selecciona un torneo —"}
+                      </option>
+                    )}
+                    {equiposDisponibles.map((e) => <option key={e.id} value={e.id}>{e.nombre_equipo}</option>)}
+                  </select>
+                </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Seeding (opcional)</label>
                 <input
@@ -339,7 +376,7 @@ export default function InscripcionesPage() {
               </button>
               <button
                 onClick={crear}
-                disabled={!form.torneo_id || !form.club_equipo_id || torneosAbiertos.length === 0}
+                disabled={!form.torneo_id || !form.club_equipo_id || torneosAbiertos.length === 0 || equiposDisponibles.length === 0}
                 className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
               >
                 Inscribir

@@ -178,6 +178,13 @@ python seed.py
 uvicorn app.main:app --reload --port 8000
 ```
 
+### Reset de BD (manual)
+Para reiniciar completamente la base de datos local:
+```bash
+cd backend
+python reset_db.py --confirm
+```
+
 ### Paso 4 — Instalar y correr el frontend
 
 ```bash

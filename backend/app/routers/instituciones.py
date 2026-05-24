@@ -7,6 +7,7 @@ from app.schemas.instituciones import InstitucionCreate, InstitucionUpdate, Inst
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
 from app.core.categorias import pais_por_categoria
+from app.models.club_equipo import ClubEquipo
 
 router = APIRouter()
 
@@ -53,5 +54,15 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
     inst = db.query(Institucion).filter(Institucion.id == id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Institución no encontrada")
+    if db.query(ClubEquipo).filter(ClubEquipo.institucion_id == id).first():
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar la institución porque tiene equipos registrados",
+        )
+    if db.query(Usuario).filter(Usuario.institucion_id == id).first():
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar la institución porque tiene usuarios asociados",
+        )
     db.delete(inst)
     db.commit()

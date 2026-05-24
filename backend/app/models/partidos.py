@@ -12,6 +12,10 @@ class Partido(Base):
             "inscripcion_local_id <> inscripcion_visitante_id",
             name="ck_partido_equipos_distintos",
         ),
+        CheckConstraint(
+            "estado IN ('programado', 'en_curso', 'finalizado')",
+            name="ck_partido_estado",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)

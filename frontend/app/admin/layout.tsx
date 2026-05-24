@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import {
   Trophy, LayoutDashboard, Building2, UserPlus, Swords,
   Shuffle, BarChart3, LogOut, Users, ChevronRight, Bell, ExternalLink,
@@ -13,7 +14,6 @@ const navItems = [
   { href: "/admin/instituciones", label: "Instituciones", icon: Building2 },
   { href: "/admin/deportes", label: "Deportes", icon: Trophy },
   { href: "/admin/equipos", label: "Equipos", icon: Dumbbell },
-  { href: "/admin/atletas", label: "Atletas", icon: PersonStanding },
   { href: "/admin/torneos", label: "Torneos", icon: Medal },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users },
   { href: "/admin/inscripciones", label: "Inscripciones", icon: UserPlus },
@@ -27,7 +27,6 @@ const breadcrumbLabels: Record<string, string> = {
   "/admin/instituciones": "Instituciones",
   "/admin/deportes": "Deportes",
   "/admin/equipos": "Equipos",
-  "/admin/atletas": "Atletas",
   "/admin/torneos": "Torneos",
   "/admin/usuarios": "Usuarios",
   "/admin/inscripciones": "Inscripciones",
@@ -72,10 +71,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("rol");
-    localStorage.removeItem("nombre");
+  async function logout() {
+    await api.logout();
     router.push("/login");
   }
 

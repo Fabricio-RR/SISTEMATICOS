@@ -15,6 +15,7 @@ export default function DeportesPage() {
   const [form, setForm] = useState({ nombre: "", tipo_competidor: "equipo" as TipoCompetidor });
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
+  const [eliminando, setEliminando]   = useState<number | null>(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -28,6 +29,10 @@ export default function DeportesPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (form.nombre.length > 100) {
+      setErrorForm("El nombre del deporte no puede tener más de 100 caracteres.");
+      return;
+    }
     setGuardando(true);
     setErrorForm("");
     try {
@@ -41,9 +46,11 @@ export default function DeportesPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("¿Eliminar este deporte?")) return;
+    setEliminando(id);
+    setError("");
     try { await api.deleteDeporte(id); await cargar(); }
-    catch { setError("No se pudo eliminar el deporte."); }
+    catch (err) { setError(err instanceof Error ? err.message : "No se pudo eliminar el deporte."); }
+    finally { setEliminando(null); }
   }
 
   const filtrados = deportes.filter((d) =>
@@ -142,7 +149,8 @@ export default function DeportesPage() {
                   {!d.es_obligatorio && (
                     <button
                       onClick={() => handleDelete(d.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors"
+                      disabled={eliminando === d.id}
+                      className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -169,6 +177,7 @@ export default function DeportesPage() {
                 <input
                   value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  maxLength={100}
                   required placeholder="Ej. Fútbol, Vóley, Atletismo"
                   className={inputCls}
                 />

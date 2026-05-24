@@ -49,8 +49,40 @@ export default function SolicitarPage() {
     e.preventDefault();
     setError("");
 
+    if (form.nombres.length > 50) {
+      setError("Nombres no puede tener más de 50 caracteres");
+      return;
+    }
+    if (form.apellidos.length > 50) {
+      setError("Apellidos no puede tener más de 50 caracteres");
+      return;
+    }
+    if (form.correo.length > 150) {
+      setError("Correo electrónico no puede tener más de 150 caracteres");
+      return;
+    }
     if (form.contrasena.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (form.contrasena.length > 255) {
+      setError("La contraseña no puede tener más de 255 caracteres");
+      return;
+    }
+    if (form.nombre_institucion.length > 100) {
+      setError("Nombre de la institución no puede tener más de 100 caracteres");
+      return;
+    }
+    if (form.ciudad.length > 50) {
+      setError("Ciudad no puede tener más de 50 caracteres");
+      return;
+    }
+    if (form.contacto && form.contacto.length > 100) {
+      setError("Contacto no puede tener más de 100 caracteres");
+      return;
+    }
+    if (form.respuesta_seguridad_1.length > 100 || form.respuesta_seguridad_2.length > 100 || form.respuesta_seguridad_3.length > 100) {
+      setError("Las respuestas de seguridad no pueden tener más de 100 caracteres");
       return;
     }
     if (!form.respuesta_seguridad_1 || !form.respuesta_seguridad_2 || !form.respuesta_seguridad_3) {
@@ -135,6 +167,7 @@ export default function SolicitarPage() {
                     type="text"
                     value={form.nombres}
                     onChange={(e) => set("nombres", e.target.value)}
+                    maxLength={50}
                     placeholder="Juan"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -147,6 +180,7 @@ export default function SolicitarPage() {
                   type="text"
                   value={form.apellidos}
                   onChange={(e) => set("apellidos", e.target.value)}
+                  maxLength={50}
                   placeholder="Pérez García"
                   required
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -166,6 +200,7 @@ export default function SolicitarPage() {
                 type="email"
                 value={form.correo}
                 onChange={(e) => set("correo", e.target.value)}
+                maxLength={150}
                 placeholder="contacto@institucion.pe"
                 required
                 className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -184,6 +219,7 @@ export default function SolicitarPage() {
                 type={mostrarPass ? "text" : "password"}
                 value={form.contrasena}
                 onChange={(e) => set("contrasena", e.target.value)}
+                maxLength={255}
                 placeholder="Mín. 8 caracteres"
                 required
                 className="w-full border border-gray-200 rounded-xl pl-9 pr-10 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -208,6 +244,7 @@ export default function SolicitarPage() {
                   type="text"
                   value={form.nombre_institucion}
                   onChange={(e) => set("nombre_institucion", e.target.value)}
+                  maxLength={100}
                   placeholder="Universidad Nacional..."
                   required
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -221,6 +258,7 @@ export default function SolicitarPage() {
                     type="text"
                     value={form.ciudad}
                     onChange={(e) => set("ciudad", e.target.value)}
+                    maxLength={50}
                     placeholder="Lima"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -235,6 +273,7 @@ export default function SolicitarPage() {
                     type="text"
                     value={form.contacto}
                     onChange={(e) => set("contacto", e.target.value)}
+                    maxLength={100}
                     placeholder="999-888-777"
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
@@ -298,6 +337,7 @@ export default function SolicitarPage() {
                     type="text"
                     value={form[respKey]}
                     onChange={(e) => set(respKey, e.target.value)}
+                    maxLength={100}
                     placeholder="Tu respuesta..."
                     required
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"

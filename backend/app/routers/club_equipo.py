@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.club_equipo import ClubEquipo
 from app.models.inscripciones import Inscripcion
 from app.schemas.club_equipo import ClubEquipoCreate, ClubEquipoUpdate, ClubEquipoOut
+from app.models.atleta_jugador import AtletaJugador
 from app.core.deps import get_current_user, require_admin
 from app.models.usuarios import Usuario
 from app.services.enrollment import assert_team_creation_allowed, assert_team_name_available
@@ -94,6 +95,11 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
     equipo = db.query(ClubEquipo).filter(ClubEquipo.id == id).first()
     if not equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    if db.query(AtletaJugador).filter(AtletaJugador.club_equipo_id == id).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar un equipo que tiene atletas registrados",
+        )
     if db.query(Inscripcion).filter(Inscripcion.club_equipo_id == id).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

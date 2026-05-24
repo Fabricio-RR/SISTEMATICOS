@@ -10,6 +10,9 @@ class PosicionTabla(BaseModel):
     partidos_ganados: int
     partidos_empatados: int
     partidos_perdidos: int
+    goles_a_favor: int
+    goles_en_contra: int
+    diferencia_goles: int
 
     model_config = {"from_attributes": True}
 

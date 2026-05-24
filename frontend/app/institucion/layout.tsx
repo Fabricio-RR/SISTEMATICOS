@@ -5,12 +5,14 @@ import Link from "next/link";
 import {
   Trophy, LayoutDashboard, UserPlus, CalendarDays,
   BarChart3, LogOut, ChevronRight, Bell, ExternalLink, X, RotateCcw,
+  Dumbbell,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Notificacion } from "@/types/api";
 
 const navItems = [
   { href: "/institucion", label: "Resumen", icon: LayoutDashboard },
+  { href: "/institucion/equipos", label: "Mis Equipos", icon: Dumbbell },
   { href: "/institucion/inscripciones", label: "Inscripciones", icon: UserPlus },
   { href: "/institucion/calendario", label: "Calendario", icon: CalendarDays },
   { href: "/institucion/resultados", label: "Resultados", icon: BarChart3 },
@@ -18,6 +20,7 @@ const navItems = [
 
 const breadcrumbLabels: Record<string, string> = {
   "/institucion": "Resumen",
+  "/institucion/equipos": "Mis Equipos",
   "/institucion/inscripciones": "Inscripciones",
   "/institucion/calendario": "Calendario",
   "/institucion/resultados": "Resultados",
@@ -71,10 +74,8 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
     );
   }
 
-  function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("rol");
-    localStorage.removeItem("nombre");
+  async function logout() {
+    await api.logout();
     router.push("/login");
   }
 

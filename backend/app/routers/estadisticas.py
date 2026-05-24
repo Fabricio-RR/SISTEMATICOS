@@ -15,14 +15,18 @@ def tabla_posiciones(torneo_id: int, db: Session = Depends(get_db)):
     if not db.query(Torneo).filter(Torneo.id == torneo_id).first():
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
 
+    diferencia = Inscripcion.goles_a_favor - Inscripcion.goles_en_contra
+
     inscripciones = (
         db.query(Inscripcion)
         .options(joinedload(Inscripcion.club_equipo))
         .filter(Inscripcion.torneo_id == torneo_id, Inscripcion.estado == "aprobado")
         .order_by(
             Inscripcion.puntos.desc(),
+            diferencia.desc(),
+            Inscripcion.goles_a_favor.desc(),
             Inscripcion.partidos_ganados.desc(),
-            Inscripcion.partidos_perdidos.asc(),
+            Inscripcion.id.asc(),
         )
         .all()
     )
@@ -37,6 +41,9 @@ def tabla_posiciones(torneo_id: int, db: Session = Depends(get_db)):
             partidos_ganados=insc.partidos_ganados,
             partidos_empatados=insc.partidos_empatados,
             partidos_perdidos=insc.partidos_perdidos,
+            goles_a_favor=insc.goles_a_favor,
+            goles_en_contra=insc.goles_en_contra,
+            diferencia_goles=insc.goles_a_favor - insc.goles_en_contra,
         )
         for i, insc in enumerate(inscripciones)
     ]
@@ -51,6 +58,11 @@ def _etiqueta_deporte(nombre_deporte: str) -> str:
 
 @router.get("/goleadores", response_model=list[Goleador])
 def goleadores(torneo_id: int, limit: int = 10, db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    from app.models.eventos_partido import EventoPartido
+    from app.models.partidos import Partido
+    from app.models.fixture import Fixture
+
     torneo = db.query(Torneo).options(joinedload(Torneo.deporte)).filter(Torneo.id == torneo_id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
@@ -58,29 +70,51 @@ def goleadores(torneo_id: int, limit: int = 10, db: Session = Depends(get_db)):
     deporte = torneo.deporte
     es_futbol = deporte and ("fútbol" in deporte.nombre.lower() or "futbol" in deporte.nombre.lower())
     etiqueta = "Goles" if es_futbol else "Puntos"
-    stat_col = AtletaJugador.goles_anotados if es_futbol else AtletaJugador.puntos_anotados
+    tipo_gol = "gol" if es_futbol else "puntos"
 
-    inscripciones = (
-        db.query(Inscripcion)
-        .filter(Inscripcion.torneo_id == torneo_id, Inscripcion.estado == "aprobado")
-        .all()
-    )
-    equipo_ids = [i.club_equipo_id for i in inscripciones]
-
-    if not equipo_ids:
-        return []
-
-    atletas = (
-        db.query(AtletaJugador)
-        .options(joinedload(AtletaJugador.club_equipo))
-        .filter(
-            AtletaJugador.club_equipo_id.in_(equipo_ids),
-            stat_col > 0,
+    # Dynamic aggregation of goals/points grouped by athlete
+    goleadores_query = (
+        db.query(
+            AtletaJugador,
+            func.count(EventoPartido.id).label("total_goles")
         )
-        .order_by(stat_col.desc())
+        .join(EventoPartido, AtletaJugador.id == EventoPartido.atleta_jugador_id)
+        .join(Partido, EventoPartido.partido_id == Partido.id)
+        .join(Fixture, Partido.fixture_id == Fixture.id)
+        .filter(Fixture.torneo_id == torneo_id)
+        .filter(EventoPartido.tipo_evento == tipo_gol)
+        .group_by(AtletaJugador.id)
+        .order_by(func.count(EventoPartido.id).desc())
         .limit(limit)
         .all()
     )
+
+    if not goleadores_query:
+        return []
+
+    goleador_ids = [a.id for a, _ in goleadores_query]
+
+    # Query cards count for these top scorers in this tournament
+    cards_map = {}
+    if goleador_ids:
+        cards_query = (
+            db.query(
+                EventoPartido.atleta_jugador_id,
+                EventoPartido.tipo_evento,
+                func.count(EventoPartido.id).label("count")
+            )
+            .join(Partido, EventoPartido.partido_id == Partido.id)
+            .join(Fixture, Partido.fixture_id == Fixture.id)
+            .filter(Fixture.torneo_id == torneo_id)
+            .filter(EventoPartido.atleta_jugador_id.in_(goleador_ids))
+            .filter(EventoPartido.tipo_evento.in_(["tarjeta_amarilla", "tarjeta_roja"]))
+            .group_by(EventoPartido.atleta_jugador_id, EventoPartido.tipo_evento)
+            .all()
+        )
+        for atleta_id, tipo, count in cards_query:
+            if atleta_id not in cards_map:
+                cards_map[atleta_id] = {"tarjeta_amarilla": 0, "tarjeta_roja": 0}
+            cards_map[atleta_id][tipo] = count
 
     return [
         Goleador(
@@ -88,10 +122,11 @@ def goleadores(torneo_id: int, limit: int = 10, db: Session = Depends(get_db)):
             atleta_id=a.id,
             nombre_completo=a.nombre_completo,
             nombre_equipo=a.club_equipo.nombre_equipo if a.club_equipo else "—",
-            goles=a.goles_anotados if es_futbol else a.puntos_anotados,
-            tarjetas_amarillas=a.tarjetas_amarillas,
-            tarjetas_rojas=a.tarjetas_rojas,
+            goles=total_goles,
+            tarjetas_amarillas=cards_map.get(a.id, {}).get("tarjeta_amarilla", 0),
+            tarjetas_rojas=cards_map.get(a.id, {}).get("tarjeta_roja", 0),
             etiqueta=etiqueta,
         )
-        for i, a in enumerate(atletas)
+        for i, (a, total_goles) in enumerate(goleadores_query)
     ]
+

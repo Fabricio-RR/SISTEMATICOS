@@ -18,6 +18,7 @@ export default function SorteosPage() {
   const [nClasificados, setNClasificados] = useState(4);
   const [estadoFase, setEstadoFase]     = useState<State>("idle");
   const [errorFase, setErrorFase]       = useState("");
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
   useEffect(() => {
     api.getTorneos().then(setTorneos).catch(() => {});
@@ -61,8 +62,8 @@ export default function SorteosPage() {
   }
 
   async function eliminar() {
-    if (!torneoId || !confirm("¿Eliminar todos los fixtures y partidos de este torneo?")) return;
-    setState("loading"); setError("");
+    if (!torneoId) return;
+    setState("loading"); setError(""); setConfirmarEliminar(false);
     try {
       await api.deleteFixture(torneoId);
       setFixtures([]);
@@ -232,10 +233,24 @@ export default function SorteosPage() {
                   {state === "loading" ? "Generando..." : fixtures.length > 0 ? "Regenerar fixture" : "Generar fixture de liga"}
                 </button>
                 {fixtures.length > 0 && (
-                  <button onClick={eliminar}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition">
-                    <Trash2 className="w-4 h-4" />Eliminar fixture
-                  </button>
+                  confirmarEliminar ? (
+                    <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <span className="text-xs text-red-700 font-semibold flex-1">¿Eliminar todos los fixtures?</span>
+                      <button onClick={eliminar}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition">
+                        Sí, eliminar
+                      </button>
+                      <button onClick={() => setConfirmarEliminar(false)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmarEliminar(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition">
+                      <Trash2 className="w-4 h-4" />Eliminar fixture
+                    </button>
+                  )
                 )}
               </div>
             )}

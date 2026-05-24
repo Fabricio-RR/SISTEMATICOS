@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.torneos import Torneo
 from app.models.deportes import Deporte
+from app.models.inscripciones import Inscripcion
+from app.models.fixture import Fixture
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
 from app.schemas.torneos import TorneoCreate, TorneoOut, TRANSICIONES
@@ -76,6 +78,16 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="No se puede eliminar un torneo en curso o finalizado.",
+        )
+    if db.query(Inscripcion).filter(Inscripcion.torneo_id == id).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar un torneo con inscripciones registradas",
+        )
+    if db.query(Fixture).filter(Fixture.torneo_id == id).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elimina el fixture del torneo antes de borrarlo",
         )
     db.delete(torneo)
     db.commit()

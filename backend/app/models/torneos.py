@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, DateTime
+from sqlalchemy import String, Integer, ForeignKey, DateTime, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -7,6 +7,16 @@ from app.database import Base
 
 class Torneo(Base):
     __tablename__ = "torneos"
+    __table_args__ = (
+        CheckConstraint(
+            "formato IN ('liga', 'eliminacion_simple', 'grupos')",
+            name="ck_torneo_formato",
+        ),
+        CheckConstraint(
+            "estado IN ('inscripcion_abierta', 'inscripcion_cerrada', 'en_sorteo', 'en_curso', 'finalizado', 'suspendido')",
+            name="ck_torneo_estado",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     deporte_id: Mapped[int] = mapped_column(Integer, ForeignKey("deportes.id"))

@@ -26,6 +26,12 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=DeporteOut, status_code=status.HTTP_201_CREATED)
 def create(data: DeporteCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    existe = db.query(Deporte).filter(Deporte.nombre == data.nombre).first()
+    if existe:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe un deporte con este nombre",
+        )
     dep = Deporte(**data.model_dump())
     db.add(dep)
     db.commit()

@@ -184,6 +184,10 @@ def _apply_table_delta(
 
     local.partidos_jugados += factor
     visitante.partidos_jugados += factor
+    local.goles_a_favor += resultado_local * factor
+    local.goles_en_contra += resultado_visitante * factor
+    visitante.goles_a_favor += resultado_visitante * factor
+    visitante.goles_en_contra += resultado_local * factor
 
     if resultado_local > resultado_visitante:
         local.partidos_ganados += factor

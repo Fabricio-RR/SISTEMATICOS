@@ -1,16 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.usuarios import Usuario
 from app.models.instituciones import Institucion
+from app.models.refresh_tokens import RefreshToken
 from app.schemas.auth import (
     LoginRequest, TokenResponse,
     RecoveryStep1Request, RecoveryStep1Response, RecoveryStep2Request,
     SolicitudAccesoRequest,
 )
 from app.schemas.usuarios import UsuarioCreate, UsuarioOut
-from app.core.security import verify_password, hash_password, create_access_token
+from app.core.security import (
+    verify_password,
+    hash_password,
+    create_access_token,
+    create_refresh_token,
+    hash_refresh_token,
+)
 from app.core.deps import get_current_user, require_admin
 from app.core.limiter import limiter
 from app.core.categorias import pais_por_categoria
@@ -18,9 +27,30 @@ from app.core.categorias import pais_por_categoria
 router = APIRouter()
 
 
+def _set_refresh_cookie(response: Response, raw_token: str, *, max_age: int) -> None:
+    response.set_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        value=raw_token,
+        httponly=True,
+        secure=settings.REFRESH_TOKEN_COOKIE_SECURE,
+        samesite=settings.REFRESH_TOKEN_COOKIE_SAMESITE,
+        max_age=max_age,
+        path=settings.REFRESH_TOKEN_COOKIE_PATH,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        path=settings.REFRESH_TOKEN_COOKIE_PATH,
+        secure=settings.REFRESH_TOKEN_COOKIE_SECURE,
+        samesite=settings.REFRESH_TOKEN_COOKIE_SAMESITE,
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = db.query(Usuario).filter(Usuario.correo == data.correo).first()
     if not user or not verify_password(data.contrasena, user.contrasena_hash):
         raise HTTPException(
@@ -34,11 +64,82 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         )
 
     token = create_access_token({"sub": str(user.id)})
+    raw_refresh, refresh_hash = create_refresh_token()
+    expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    db.add(RefreshToken(
+        usuario_id=user.id,
+        token_hash=refresh_hash,
+        expires_at=expires_at,
+    ))
+    db.commit()
+
+    _set_refresh_cookie(
+        response,
+        raw_refresh,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+    )
     return TokenResponse(
         access_token=token,
         rol=user.rol,
         nombre=f"{user.nombres} {user.apellidos}",
     )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("20/minute")
+def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    raw_refresh = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if not raw_refresh:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token no enviado")
+
+    token_hash = hash_refresh_token(raw_refresh)
+    stored = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+    if not stored:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
+    if stored.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revocado")
+    if stored.expires_at < datetime.utcnow():
+        stored.revoked_at = datetime.utcnow()
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expirado")
+
+    user = db.query(Usuario).filter(Usuario.id == stored.usuario_id, Usuario.esta_activo == True).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario inválido")
+
+    stored.revoked_at = datetime.utcnow()
+    raw_new, new_hash = create_refresh_token()
+    expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    db.add(RefreshToken(
+        usuario_id=user.id,
+        token_hash=new_hash,
+        expires_at=expires_at,
+    ))
+    db.commit()
+
+    _set_refresh_cookie(
+        response,
+        raw_new,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+    )
+    token = create_access_token({"sub": str(user.id)})
+    return TokenResponse(
+        access_token=token,
+        rol=user.rol,
+        nombre=f"{user.nombres} {user.apellidos}",
+    )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    raw_refresh = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if raw_refresh:
+        token_hash = hash_refresh_token(raw_refresh)
+        stored = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+        if stored and stored.revoked_at is None:
+            stored.revoked_at = datetime.utcnow()
+            db.commit()
+    _clear_refresh_cookie(response)
 
 
 @router.post("/register", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)

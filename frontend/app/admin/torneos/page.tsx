@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Medal, Plus, Trash2, Search, AlertCircle, ChevronRight, PauseCircle } from "lucide-react";
+import { Medal, Plus, Trash2, Search, AlertCircle, ChevronRight, PauseCircle, Lock, Shuffle, Play, Award, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Torneo, Deporte, FormatoTorneo, EstadoTorneo } from "@/types/api";
 import {
@@ -17,6 +18,45 @@ const FORMATO_LABEL: Record<FormatoTorneo, string> = {
   grupos: "Grupos + eliminación",
 };
 
+const ACCION_VERBOS: Record<string, { label: string; bg: string; text: string; hover: string; border: string }> = {
+  inscripcion_abierta: {
+    label: "Cerrar Inscripción",
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    hover: "hover:bg-amber-100",
+    border: "border-amber-200",
+  },
+  inscripcion_cerrada: {
+    label: "Habilitar Sorteo",
+    bg: "bg-indigo-50",
+    text: "text-indigo-700",
+    hover: "hover:bg-indigo-100",
+    border: "border-indigo-200",
+  },
+  en_sorteo: {
+    label: "Iniciar Torneo",
+    bg: "bg-green-50",
+    text: "text-green-700",
+    hover: "hover:bg-green-100",
+    border: "border-green-200",
+  },
+  en_curso: {
+    label: "Finalizar Torneo",
+    bg: "bg-red-50",
+    text: "text-red-700",
+    hover: "hover:bg-red-100",
+    border: "border-red-200",
+  },
+};
+
+const FASES_TORNEO: { key: EstadoTorneo; label: string }[] = [
+  { key: "inscripcion_abierta", label: "Registro" },
+  { key: "inscripcion_cerrada", label: "Cierre" },
+  { key: "en_sorteo", label: "Sorteo" },
+  { key: "en_curso", label: "En Curso" },
+  { key: "finalizado", label: "Finalizado" }
+];
+
 export default function TorneosPage() {
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [deportes, setDeportes] = useState<Deporte[]>([]);
@@ -32,6 +72,7 @@ export default function TorneosPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
   const [accionando, setAccionando] = useState<number | null>(null);
+  const [torneosConFixture, setTorneosConFixture] = useState<Set<number>>(new Set());
 
   useEffect(() => { cargar(); }, []);
 
@@ -39,9 +80,10 @@ export default function TorneosPage() {
     setCargando(true);
     setError("");
     try {
-      const [torn, dep] = await Promise.all([api.getTorneos(), api.getDeportes()]);
+      const [torn, dep, fixes] = await Promise.all([api.getTorneos(), api.getDeportes(), api.getFixture()]);
       setTorneos(torn);
       setDeportes(dep);
+      setTorneosConFixture(new Set(fixes.map(f => f.torneo_id)));
     } catch { setError("No se pudo cargar los torneos."); }
     finally { setCargando(false); }
   }
@@ -49,6 +91,14 @@ export default function TorneosPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!form.deporte_id) { setErrorForm("Selecciona un deporte."); return; }
+    if (form.nombre.length > 150) {
+      setErrorForm("El nombre del torneo no puede tener más de 150 caracteres.");
+      return;
+    }
+    if (form.temporada.length > 20) {
+      setErrorForm("La temporada no puede tener más de 20 caracteres.");
+      return;
+    }
     setGuardando(true);
     setErrorForm("");
     try {
@@ -63,23 +113,47 @@ export default function TorneosPage() {
 
   async function handleAvanzar(id: number) {
     setAccionando(id);
-    try { await api.avanzarTorneo(id); await cargar(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Error al avanzar el torneo."); }
-    finally { setAccionando(null); }
+    setError("");
+    try {
+      await api.avanzarTorneo(id);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al avanzar el torneo.");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } finally {
+      setAccionando(null);
+    }
   }
 
   async function handleSuspender(id: number) {
-    if (!confirm("¿Suspender este torneo?")) return;
     setAccionando(id);
-    try { await api.suspenderTorneo(id); await cargar(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Error al suspender el torneo."); }
-    finally { setAccionando(null); }
+    setError("");
+    try {
+      await api.suspenderTorneo(id);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al suspender el torneo.");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } finally {
+      setAccionando(null);
+    }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("¿Eliminar este torneo? Se eliminarán también sus fixtures y partidos asociados.")) return;
-    try { await api.deleteTorneo(id); await cargar(); }
-    catch (e) { setError(e instanceof Error ? e.message : "No se pudo eliminar el torneo."); }
+    setError("");
+    try {
+      await api.deleteTorneo(id);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo eliminar el torneo.");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
   }
 
   const depMap = new Map(deportes.map((d) => [d.id, d.nombre]));
@@ -143,8 +217,8 @@ export default function TorneosPage() {
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Deporte</th>
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Formato</th>
               <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Temporada</th>
-              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Estado</th>
-              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Fases de Progreso</th>
+              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones de Flujo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -164,53 +238,134 @@ export default function TorneosPage() {
                       <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
                         <Medal className="w-4 h-4 text-red-600" />
                       </div>
-                      <p className="text-sm font-semibold text-gray-900">{t.nombre}</p>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{t.nombre}</p>
+                        {t.estado === "suspendido" && (
+                          <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 mt-0.5">
+                            SUSPENDIDO
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{depMap.get(t.deporte_id) ?? `#${t.deporte_id}`}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{FORMATO_LABEL[t.formato]}</td>
                   <td className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t.temporada}</td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${ESTADO_TORNEO_BADGE[t.estado]}`}>
-                      {ESTADO_TORNEO_LABEL[t.estado]}
-                    </span>
-                  </td>
+                  
+                  {/* Stepper horizontal del progreso del torneo */}
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-2">
-                      {siguiente && (
-                        <button
-                          onClick={() => {
-                            if (t.estado === "en_sorteo" && !confirm(
-                              `¿Avanzar a "En curso"?\n\nAsegúrate de haber generado el fixture en la página de Sorteos antes de continuar. Una vez en curso no se puede regenerar el fixture de liga.`
-                            )) return;
-                            handleAvanzar(t.id);
-                          }}
-                          disabled={accionando === t.id}
-                          title={t.estado === "en_sorteo" ? "Avanzar a En curso (genera el fixture en Sorteos primero)" : `Avanzar a "${ESTADO_TORNEO_LABEL[siguiente]}"`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 transition"
-                        >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                          {ESTADO_TORNEO_LABEL[siguiente]}
-                        </button>
+                    {t.estado === "suspendido" ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 font-semibold">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Competencia en pausa
+                      </span>
+                    ) : (
+                      <div className="flex items-center justify-start gap-1">
+                        {FASES_TORNEO.map((f, idx) => {
+                          const isCurrent = t.estado === f.key;
+                          const isPast = FASES_TORNEO.findIndex(x => x.key === t.estado) > idx;
+                          return (
+                            <div key={f.key} className="flex items-center">
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition whitespace-nowrap ${
+                                  isCurrent
+                                    ? "bg-red-600 text-white shadow-sm ring-2 ring-red-100"
+                                    : isPast
+                                    ? "bg-green-50 text-green-700 border border-green-200"
+                                    : "bg-gray-50 text-gray-400 border border-gray-100"
+                                }`}
+                                title={ESTADO_TORNEO_LABEL[f.key]}
+                              >
+                                {f.label}
+                              </span>
+                              {idx < FASES_TORNEO.length - 1 && (
+                                <span className={`h-0.5 w-3 mx-0.5 ${isPast ? "bg-green-300" : "bg-gray-100"}`} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Acciones de flujo intuitivas */}
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex flex-col items-center gap-1.5 justify-center">
+                      <div className="flex items-center gap-2">
+                        {siguiente && (() => {
+                          const verbObj = ACCION_VERBOS[t.estado];
+                          if (!verbObj) return null;
+
+                          let IconComp = ChevronRight;
+                          if (t.estado === "inscripcion_abierta") IconComp = Lock;
+                          else if (t.estado === "inscripcion_cerrada") IconComp = Shuffle;
+                          else if (t.estado === "en_sorteo") IconComp = Play;
+                          else if (t.estado === "en_curso") IconComp = Award;
+
+                          const sinFixture = t.estado === "en_sorteo" && !torneosConFixture.has(t.id);
+
+                          return (
+                            <button
+                              onClick={() => {
+                                if (sinFixture) {
+                                  setError("Debes generar el fixture en Sorteos antes de iniciar el torneo.");
+                                  window.scrollTo({ top: 0, behavior: "smooth" });
+                                  return;
+                                }
+                                handleAvanzar(t.id);
+                              }}
+                              disabled={accionando === t.id}
+                              title={sinFixture ? "Primero genera el fixture en Sorteos" : `Pasar a ${ESTADO_TORNEO_LABEL[siguiente]}`}
+                              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition shadow-sm ${verbObj.bg} ${verbObj.text} ${verbObj.border} ${verbObj.hover} disabled:opacity-40`}
+                            >
+                              <IconComp className="w-3.5 h-3.5 shrink-0" />
+                              {verbObj.label}
+                            </button>
+                          );
+                        })()}
+
+                        {t.estado !== "finalizado" && t.estado !== "suspendido" && (
+                          <button
+                            onClick={() => handleSuspender(t.id)}
+                            disabled={accionando === t.id}
+                            title="Suspender torneo"
+                            className="p-1.5 rounded-lg border border-gray-100 bg-gray-50 text-gray-400 hover:text-amber-500 hover:border-amber-200 transition-colors shadow-sm"
+                          >
+                            <PauseCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                        {t.estado !== "en_curso" && t.estado !== "finalizado" && (
+                          <button
+                            onClick={() => handleDelete(t.id)}
+                            title="Eliminar torneo"
+                            className="p-1.5 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Mensaje de ayuda contextual */}
+                      {t.estado === "en_sorteo" && !torneosConFixture.has(t.id) && (
+                        <p className="text-[10px] text-red-500 font-semibold flex items-center gap-0.5 animate-pulse mt-0.5">
+                          <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
+                          <span>Genera el fixture en <Link href="/admin/sorteos" className="underline hover:text-red-700">Sorteos</Link> primero</span>
+                        </p>
                       )}
-                      {t.estado !== "finalizado" && t.estado !== "suspendido" && (
-                        <button
-                          onClick={() => handleSuspender(t.id)}
-                          disabled={accionando === t.id}
-                          title="Suspender torneo"
-                          className="text-gray-300 hover:text-amber-500 transition-colors"
-                        >
-                          <PauseCircle className="w-4 h-4" />
-                        </button>
+                      {t.estado === "inscripcion_abierta" && (
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          Los equipos se inscriben libremente
+                        </p>
                       )}
-                      {t.estado !== "en_curso" && t.estado !== "finalizado" && (
-                        <button
-                          onClick={() => handleDelete(t.id)}
-                          title="Eliminar torneo"
-                          className="text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      {t.estado === "inscripcion_cerrada" && (
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          Inscripción cerrada. Habilita sorteo para armar partidos
+                        </p>
+                      )}
+                      {t.estado === "en_curso" && (
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          Torneo activo, actualiza resultados en panel
+                        </p>
                       )}
                     </div>
                   </td>
@@ -239,6 +394,7 @@ export default function TorneosPage() {
                 <input
                   value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  maxLength={150}
                   required placeholder="Ej. Copa Interuniversitaria Fútbol"
                   className={inputCls}
                 />
@@ -271,6 +427,7 @@ export default function TorneosPage() {
                 <input
                   value={form.temporada}
                   onChange={(e) => setForm({ ...form, temporada: e.target.value })}
+                  maxLength={20}
                   required placeholder="Ej. 2026"
                   className={inputCls}
                 />

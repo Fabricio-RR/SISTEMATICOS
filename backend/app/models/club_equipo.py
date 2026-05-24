@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import String, Integer, ForeignKey, DateTime, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -13,6 +13,10 @@ class ClubEquipo(Base):
             "deporte_id",
             "nombre_equipo",
             name="uq_equipo_inst_dep_nombre",
+        ),
+        CheckConstraint(
+            "estado IN ('pendiente', 'aprobado', 'rechazado')",
+            name="ck_equipo_estado",
         ),
     )
 

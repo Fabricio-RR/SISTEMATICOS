@@ -17,6 +17,7 @@ export default function InstitucionesPage() {
   });
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
+  const [eliminando, setEliminando] = useState<number | null>(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -34,6 +35,22 @@ export default function InstitucionesPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (form.nombre.length > 200) {
+      setErrorForm("El nombre no puede tener más de 200 caracteres.");
+      return;
+    }
+    if (form.nombre_corto.length > 50) {
+      setErrorForm("El nombre corto no puede tener más de 50 caracteres.");
+      return;
+    }
+    if (form.ciudad.length > 100) {
+      setErrorForm("La ciudad no puede tener más de 100 caracteres.");
+      return;
+    }
+    if (form.contacto && form.contacto.length > 200) {
+      setErrorForm("El contacto no puede tener más de 200 caracteres.");
+      return;
+    }
     setGuardando(true);
     setErrorForm("");
     try {
@@ -49,12 +66,15 @@ export default function InstitucionesPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("¿Eliminar esta institución?")) return;
+    setEliminando(id);
+    setError("");
     try {
       await api.deleteInstitucion(id);
       await cargar();
-    } catch {
-      setError("No se pudo eliminar la institución.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la institución.");
+    } finally {
+      setEliminando(null);
     }
   }
 
@@ -169,7 +189,8 @@ export default function InstitucionesPage() {
                   <td className="px-6 py-4 text-center">
                     <button
                       onClick={() => handleDelete(inst.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors"
+                      disabled={eliminando === inst.id}
+                      className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -197,6 +218,7 @@ export default function InstitucionesPage() {
                   value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                   required
+                  maxLength={200}
                   placeholder="Ej. Universidad de Lima"
                   className={inputCls}
                 />
@@ -206,6 +228,7 @@ export default function InstitucionesPage() {
                   value={form.nombre_corto}
                   onChange={(e) => setForm({ ...form, nombre_corto: e.target.value })}
                   required
+                  maxLength={50}
                   placeholder="Ej. UL"
                   className={inputCls}
                 />
@@ -215,6 +238,7 @@ export default function InstitucionesPage() {
                   value={form.ciudad}
                   onChange={(e) => setForm({ ...form, ciudad: e.target.value })}
                   required
+                  maxLength={100}
                   placeholder="Ej. Lima"
                   className={inputCls}
                 />
@@ -223,6 +247,7 @@ export default function InstitucionesPage() {
                 <input
                   value={form.contacto}
                   onChange={(e) => setForm({ ...form, contacto: e.target.value })}
+                  maxLength={200}
                   placeholder="Ej. 999-888-777"
                   className={inputCls}
                 />

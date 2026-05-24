@@ -59,13 +59,20 @@ try:
         Deporte(nombre="Vóley Mixto", tipo_competidor="equipo"),
         Deporte(nombre="Atletismo 100m", tipo_competidor="individual"),
     ]
+    
+    deportes_creados = 0
     for d in deportes_iniciales:
-        db.add(d)
+        existe = db.query(Deporte).filter(Deporte.nombre == d.nombre).first()
+        if not existe:
+            db.add(d)
+            deportes_creados += 1
+        else:
+            print(f"El deporte '{d.nombre}' ya existe en la base de datos, se omite su creación.")
 
     db.commit()
     print("Seed completado:")
     print(f"  Admin: {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
-    print(f"  Deportes creados: {len(deportes_iniciales)}")
+    print(f"  Deportes creados: {deportes_creados}")
 
 except Exception as e:
     db.rollback()

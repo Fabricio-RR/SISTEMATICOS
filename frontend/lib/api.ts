@@ -33,13 +33,80 @@ import type {
 } from "@/types/api";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const AUTH_REFRESH_PATH = "/api/auth/refresh";
+const AUTH_LOGOUT_PATH = "/api/auth/logout";
+const AUTH_SKIP_REFRESH = new Set([
+  "/api/auth/login",
+  AUTH_REFRESH_PATH,
+  AUTH_LOGOUT_PATH,
+  "/api/auth/solicitar",
+  "/api/auth/recovery/questions",
+  "/api/auth/recovery/reset",
+]);
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("token");
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+function setSession(data: LoginResponse) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("token", data.access_token);
+  localStorage.setItem("rol", data.rol);
+  localStorage.setItem("nombre", data.nombre);
+}
+
+function clearSession() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("token");
+  localStorage.removeItem("rol");
+  localStorage.removeItem("nombre");
+}
+
+function extractErrorMessage(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const detail = (payload as { detail?: unknown; message?: unknown }).detail
+    ?? (payload as { message?: unknown }).message;
+  if (!detail) return null;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const mensajes = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item && typeof (item as { msg?: unknown }).msg === "string") {
+          return (item as { msg?: string }).msg ?? null;
+        }
+        return null;
+      })
+      .filter((msg): msg is string => Boolean(msg));
+    return mensajes.length > 0 ? mensajes.join(" | ") : null;
+  }
+  if (typeof detail === "object" && "msg" in detail && typeof (detail as { msg?: unknown }).msg === "string") {
+    return (detail as { msg?: string }).msg ?? null;
+  }
+  return null;
+}
+
+async function refreshSession(): Promise<LoginResponse | null> {
+  try {
+    const res = await fetch(`${BASE}${AUTH_REFRESH_PATH}`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as LoginResponse;
+    setSession(data);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function requestWithRetry<T>(
+  path: string,
+  options: RequestInit,
+  allowRefresh: boolean
+): Promise<T> {
   const token = getToken();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -51,12 +118,30 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const timer = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const res = await fetch(`${BASE}${path}`, { ...options, headers, signal: controller.signal });
+    const res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+      signal: controller.signal,
+    });
     clearTimeout(timer);
 
+    if (res.status === 401 && allowRefresh && !AUTH_SKIP_REFRESH.has(path)) {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        return requestWithRetry<T>(path, options, false);
+      }
+      clearSession();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Sesión expirada. Inicia sesión nuevamente.");
+    }
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Error desconocido" }));
-      throw new Error((err as { detail?: string }).detail ?? "Error en la solicitud");
+      const body = await res.json().catch(() => null);
+      const message = extractErrorMessage(body) ?? "Error en la solicitud";
+      throw new Error(message);
     }
 
     if (res.status === 204) return undefined as T;
@@ -70,16 +155,31 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 }
 
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return requestWithRetry(path, options, true);
+}
+
 export const api = {
   // ── Auth ────────────────────────────────────────────────────────────────────
 
-  login: (correo: string, contrasena: string) =>
-    request<LoginResponse>("/api/auth/login", {
+  login: async (correo: string, contrasena: string) => {
+    const data = await request<LoginResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ correo, contrasena }),
-    }),
+    });
+    setSession(data);
+    return data;
+  },
 
   me: () => request<Usuario>("/api/auth/me"),
+
+  logout: async () => {
+    try {
+      await request<void>(AUTH_LOGOUT_PATH, { method: "POST" });
+    } finally {
+      clearSession();
+    }
+  },
 
   solicitar: (data: SolicitudAccesoPayload) =>
     request<MessageResponse>("/api/auth/solicitar", {
@@ -200,8 +300,14 @@ export const api = {
 
   // ── Atletas ───────────────────────────────────────────────────────────────────
 
-  getAtletas: (club_equipo_id?: number) =>
-    request<AtletaJugador[]>(`/api/atletas/${club_equipo_id != null ? `?club_equipo_id=${club_equipo_id}` : ""}`),
+  getAtletas: (club_equipo_id?: number, torneo_id?: number, nombre_fase?: string) => {
+    const params = new URLSearchParams();
+    if (club_equipo_id != null) params.set("club_equipo_id", String(club_equipo_id));
+    if (torneo_id != null) params.set("torneo_id", String(torneo_id));
+    if (nombre_fase != null) params.set("nombre_fase", nombre_fase);
+    const query = params.toString();
+    return request<AtletaJugador[]>(`/api/atletas/${query ? `?${query}` : ""}`);
+  },
   createAtleta: (data: AtletaCreate) =>
     request<AtletaJugador>("/api/atletas/", { method: "POST", body: JSON.stringify(data) }),
   updateAtleta: (id: number, data: AtletaUpdate) =>

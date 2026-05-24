@@ -304,9 +304,12 @@ export interface Partido {
   reprogramado_en: string | null;
   local_nombre: string;
   visitante_nombre: string;
+  local_club_equipo_id?: number | null;
+  visitante_club_equipo_id?: number | null;
   torneo_nombre: string;
   sede_nombre: string;
   jornada: number;
+  eventos?: EventoPartidoOut[];
 }
 
 export interface PartidoUpdate {
@@ -330,9 +333,26 @@ export interface Notificacion {
   creada_en: string;
 }
 
+export interface EventoPartidoCreate {
+  atleta_jugador_id: number;
+  tipo_evento: string; // "gol", "puntos", "tarjeta_amarilla", "tarjeta_roja"
+  minuto?: number | null;
+  descripcion?: string | null;
+}
+
+export interface EventoPartidoOut {
+  id: number;
+  partido_id: number;
+  atleta_jugador_id: number | null;
+  tipo_evento: string;
+  minuto: number | null;
+  descripcion: string | null;
+}
+
 export interface ResultadoUpdate {
   resultado_local: number;
   resultado_visitante: number;
+  eventos?: EventoPartidoCreate[];
 }
 
 // ── Atletas ───────────────────────────────────────────────────────────────────
@@ -383,6 +403,9 @@ export interface PosicionTabla {
   partidos_ganados: number;
   partidos_empatados: number;
   partidos_perdidos: number;
+  goles_a_favor: number;
+  goles_en_contra: number;
+  diferencia_goles: number;
 }
 
 export interface Goleador {

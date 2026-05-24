@@ -10,6 +10,8 @@ from app.models.inscripciones import Inscripcion
 from app.models.torneos import Torneo
 from app.models.auditoria import Auditoria
 from app.models.notificaciones import Notificacion
+from app.models.eventos_partido import EventoPartido
+from app.models.atleta_jugador import AtletaJugador
 from app.schemas.partidos import PartidoUpdate, ResultadoUpdate, PartidoOut
 from app.core.deps import require_admin, require_admin_or_arbitro
 from app.models.usuarios import Usuario
@@ -26,6 +28,7 @@ def _load_partido(partido_id: int, db: Session) -> Partido | None:
             joinedload(Partido.local).joinedload(Inscripcion.club_equipo),
             joinedload(Partido.visitante).joinedload(Inscripcion.club_equipo),
             joinedload(Partido.sede),
+            joinedload(Partido.eventos),
         )
         .filter(Partido.id == partido_id)
         .first()
@@ -34,10 +37,14 @@ def _load_partido(partido_id: int, db: Session) -> Partido | None:
 
 def _build_out(p: Partido) -> PartidoOut:
     out = PartidoOut.model_validate(p)
-    if p.local and p.local.club_equipo:
-        out.local_nombre = p.local.club_equipo.nombre_equipo
-    if p.visitante and p.visitante.club_equipo:
-        out.visitante_nombre = p.visitante.club_equipo.nombre_equipo
+    if p.local:
+        if p.local.club_equipo:
+            out.local_nombre = p.local.club_equipo.nombre_equipo
+        out.local_club_equipo_id = p.local.club_equipo_id
+    if p.visitante:
+        if p.visitante.club_equipo:
+            out.visitante_nombre = p.visitante.club_equipo.nombre_equipo
+        out.visitante_club_equipo_id = p.visitante.club_equipo_id
     if p.fixture:
         out.jornada = p.fixture.jornada
         if p.fixture.torneo:
@@ -55,6 +62,7 @@ def _get_all_query(db: Session):
             joinedload(Partido.local).joinedload(Inscripcion.club_equipo),
             joinedload(Partido.visitante).joinedload(Inscripcion.club_equipo),
             joinedload(Partido.sede),
+            joinedload(Partido.eventos),
         )
     )
 
@@ -89,6 +97,11 @@ def update(id: int, data: PartidoUpdate, db: Session = Depends(get_db), _: Usuar
     p = _load_partido(id, db)
     if not p:
         raise HTTPException(status_code=404, detail="Partido no encontrado")
+    if data.estado == "finalizado":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Para finalizar un partido y registrar estadísticas usa el endpoint /resultado.",
+        )
     if p.estado == "finalizado" and data.estado is not None and data.estado != "finalizado":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -153,6 +166,35 @@ def set_resultado(id: int, data: ResultadoUpdate, db: Session = Depends(get_db),
         data.resultado_visitante,
         torneo=torneo,
     )
+
+    if data.eventos is not None:
+        db.query(EventoPartido).filter(EventoPartido.partido_id == p.id).delete()
+        for ev in data.eventos:
+            atleta = db.query(AtletaJugador).filter(AtletaJugador.id == ev.atleta_jugador_id).first()
+            if not atleta:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Atleta con ID {ev.atleta_jugador_id} no encontrado.",
+                )
+            valid_team_ids = []
+            if p.local and p.local.club_equipo_id:
+                valid_team_ids.append(p.local.club_equipo_id)
+            if p.visitante and p.visitante.club_equipo_id:
+                valid_team_ids.append(p.visitante.club_equipo_id)
+            if atleta.club_equipo_id not in valid_team_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"El atleta {atleta.nombre_completo} no pertenece a los equipos de este partido.",
+                )
+            db_ev = EventoPartido(
+                partido_id=p.id,
+                atleta_jugador_id=ev.atleta_jugador_id,
+                tipo_evento=ev.tipo_evento,
+                minuto=ev.minuto,
+                descripcion=ev.descripcion,
+            )
+            db.add(db_ev)
+
     db.add(Auditoria(
         usuario_id=current_user.id,
         tabla_afectada="partidos",

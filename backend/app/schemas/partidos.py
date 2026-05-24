@@ -30,9 +30,28 @@ class PartidoUpdate(BaseModel):
     motivo_reprogramacion: str | None = None
 
 
+class EventoPartidoCreate(BaseModel):
+    atleta_jugador_id: int
+    tipo_evento: str  # gol, puntos, tarjeta_amarilla, tarjeta_roja
+    minuto: int | None = None
+    descripcion: str | None = None
+
+
+class EventoPartidoOut(BaseModel):
+    id: int
+    partido_id: int
+    atleta_jugador_id: int | None
+    tipo_evento: str
+    minuto: int | None = None
+    descripcion: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class ResultadoUpdate(BaseModel):
     resultado_local: int = Field(..., ge=0, le=99)
     resultado_visitante: int = Field(..., ge=0, le=99)
+    eventos: list[EventoPartidoCreate] | None = None
 
 
 class PartidoOut(BaseModel):
@@ -53,8 +72,12 @@ class PartidoOut(BaseModel):
     reprogramado_en: datetime | None = None
     local_nombre: str = ""
     visitante_nombre: str = ""
+    local_club_equipo_id: int | None = None
+    visitante_club_equipo_id: int | None = None
     torneo_nombre: str = ""
     sede_nombre: str = ""
     jornada: int = 0
+    eventos: list[EventoPartidoOut] = []
 
     model_config = {"from_attributes": True}
+

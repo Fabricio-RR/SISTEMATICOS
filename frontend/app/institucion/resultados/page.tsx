@@ -92,7 +92,7 @@ export default function InstitucionResultadosPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      {["Pos", "Equipo", "PJ", "G", "E", "P", "PTS"].map((h) => (
+                      {["Pos", "Equipo", "PJ", "G", "E", "P", "GF", "GC", "DIF", "PTS"].map((h) => (
                         <th
                           key={h}
                           className={`py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider ${h === "Equipo" ? "text-left px-4" : "text-center px-3"}`}
@@ -115,6 +115,11 @@ export default function InstitucionResultadosPage() {
                         <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_ganados}</td>
                         <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_empatados}</td>
                         <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_perdidos}</td>
+                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.goles_a_favor}</td>
+                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.goles_en_contra}</td>
+                        <td className="text-center px-3 py-3 text-sm font-semibold text-gray-700">
+                          {fila.diferencia_goles > 0 ? `+${fila.diferencia_goles}` : fila.diferencia_goles}
+                        </td>
                         <td className="text-center px-3 py-3">
                           <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg">{fila.puntos}</span>
                         </td>

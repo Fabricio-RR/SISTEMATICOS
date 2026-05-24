@@ -48,14 +48,17 @@ export default function UsuariosPage() {
 
   async function aprobar(id: number) {
     setAccion(id);
+    setError("");
     try { await api.approveUsuario(id); await cargar(); }
+    catch (err) { setError(err instanceof Error ? err.message : "No se pudo aprobar el usuario."); }
     finally { setAccion(null); }
   }
 
   async function desactivar(id: number) {
-    if (!confirm("¿Desactivar este usuario?")) return;
     setAccion(id);
+    setError("");
     try { await api.deactivateUsuario(id); await cargar(); }
+    catch (err) { setError(err instanceof Error ? err.message : "No se pudo desactivar el usuario."); }
     finally { setAccion(null); }
   }
 
