@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/admin/torneos/page": [
+    "/admin/deportes/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/torneos/page.js"
+      "static/chunks/app/admin/deportes/page.js"
     ],
     "/admin/layout": [
       "static/chunks/webpack.js",
@@ -16,55 +16,70 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/admin/sorteos/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/admin/sorteos/page.js"
-    ],
-    "/admin/inscripciones/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/admin/inscripciones/page.js"
-    ],
-    "/admin/usuarios/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/admin/usuarios/page.js"
-    ],
     "/admin/equipos/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/equipos/page.js"
     ],
-    "/login/page": [
+    "/admin/torneos/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/login/page.js"
+      "static/chunks/app/admin/torneos/page.js"
+    ],
+    "/admin/instituciones/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/instituciones/page.js"
     ],
     "/admin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/page.js"
     ],
-    "/admin/resultados/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/admin/resultados/page.js"
-    ],
     "/admin/encuentros/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/encuentros/page.js"
     ],
-    "/admin/deportes/page": [
+    "/admin/resultados/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/deportes/page.js"
+      "static/chunks/app/admin/resultados/page.js"
     ],
-    "/admin/instituciones/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/instituciones/page.js"
+      "static/chunks/app/page.js"
+    ],
+    "/admin/usuarios/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/usuarios/page.js"
+    ],
+    "/admin/inscripciones/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/inscripciones/page.js"
+    ],
+    "/admin/atletas/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/atletas/page.js"
+    ],
+    "/admin/sorteos/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/sorteos/page.js"
+    ],
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
+    ],
+    "/solicitar/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/solicitar/page.js"
     ]
   }
 }

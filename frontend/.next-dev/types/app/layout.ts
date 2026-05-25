@@ -1,4 +1,4 @@
-// File: /home/orlando/UTP/SISTEMATICOS-staging/frontend/app/layout.tsx
+// File: C:\Users\CDOcix\Desktop\Arquitectura OS\SISTEMATICOS\frontend\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

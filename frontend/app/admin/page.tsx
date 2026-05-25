@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   Radio, Users, Calendar, Trophy,
   Building2, Shuffle, BarChart3,
@@ -16,6 +16,7 @@ interface Stats {
   atletas: number;
 }
 
+// Funciones puras 
 function isImportant(entry: AuditoriaEntry): boolean {
   if (entry.tabla_afectada === "partidos" && entry.accion === "UPDATE") return true;
   if (entry.tabla_afectada === "inscripciones") return true;
@@ -86,17 +87,25 @@ function relativeTime(dateStr: string): string {
   return `hace ${Math.floor(diff / 86400)} d`;
 }
 
+// COMPONENTE PRINCIPAL
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats>({
     deportes: 0, enCurso: 0, programados: 0, atletas: 0,
   });
   const [actividad, setActividad] = useState<AuditoriaEntry[]>([]);
   const [error, setError] = useState("");
-  const [cargando, setCargando] = useState(true);
-  const errorRef = useRef(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Para la carga inicial (determina si mostramos Skeletons)
+  const [cargandoInicial, setCargandoInicial] = useState(true);
+  // Para mostrar el spinner sutil en el header
+  const [actualizando, setActualizando] = useState(false);
 
+  const errorRef = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Lógica de Obtención de Datos y Polling Seguro 
   const fetchData = useCallback(async () => {
+    setActualizando(true);
     try {
       const [enCurso, programados, atletas, deportes, auditoriaLogs] = await Promise.all([
         api.getPartidos({ torneo_estado: "en_curso" }),
@@ -105,6 +114,7 @@ export default function AdminDashboard() {
         api.getDeportes(),
         api.getAuditoria(10),
       ]);
+      
       setStats({
         deportes: deportes.length,
         enCurso: enCurso.length,
@@ -120,42 +130,55 @@ export default function AdminDashboard() {
         errorRef.current = true;
       }
     } finally {
-      setCargando(false);
+      setCargandoInicial(false);
+      setActualizando(false);
+      
+      // Programamos la siguiente ejecución SOLO cuando esta haya terminado
+      timeoutRef.current = setTimeout(fetchData, 30_000);
     }
   }, []);
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 30_000);
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [fetchData]);
+
+  // --- Optimización: Filtrado de Actividad Memoizado ---
+  const actividadesImportantes = useMemo(() => {
+    return actividad.filter(isImportant).slice(0, 8);
+  }, [actividad]);
 
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 animate-in fade-in">
           {error}
         </div>
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Panel de control</p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Resumen general</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Resumen general</h1>
+            {!cargandoInicial && actualizando && (
+              <div className="w-4 h-4 mt-1 border-2 border-red-500 border-t-transparent rounded-full animate-spin" title="Actualizando en vivo..." />
+            )}
+          </div>
         </div>
         <Link
           href="/admin/encuentros"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
         >
           Nuevo evento
         </Link>
       </div>
 
-      {/* Stats — una sola fila con las 4 métricas clave */}
-      <div className="grid grid-cols-4 gap-5">
+      {/* Stats — Grilla Responsiva */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="w-9 h-9 rounded-lg bg-red-600 flex items-center justify-center">
@@ -166,7 +189,11 @@ export default function AdminDashboard() {
               EN VIVO
             </span>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.enCurso}</p>
+          {cargandoInicial ? (
+            <div className="h-9 w-16 bg-gray-100 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold text-gray-900">{stats.enCurso}</p>
+          )}
           <p className="text-sm font-medium text-gray-500 mt-1">Partidos en curso</p>
         </div>
 
@@ -176,7 +203,11 @@ export default function AdminDashboard() {
               <Calendar className="w-4 h-4 text-amber-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.programados}</p>
+          {cargandoInicial ? (
+            <div className="h-9 w-16 bg-gray-100 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold text-gray-900">{stats.programados}</p>
+          )}
           <p className="text-sm font-medium text-gray-500 mt-1">Encuentros pendientes</p>
         </div>
 
@@ -186,7 +217,11 @@ export default function AdminDashboard() {
               <Users className="w-4 h-4 text-blue-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.atletas}</p>
+          {cargandoInicial ? (
+            <div className="h-9 w-16 bg-gray-100 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold text-gray-900">{stats.atletas}</p>
+          )}
           <p className="text-sm font-medium text-gray-500 mt-1">Atletas registrados</p>
         </div>
 
@@ -196,13 +231,17 @@ export default function AdminDashboard() {
               <Trophy className="w-4 h-4 text-green-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.deportes}</p>
+          {cargandoInicial ? (
+            <div className="h-9 w-16 bg-gray-100 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold text-gray-900">{stats.deportes}</p>
+          )}
           <p className="text-sm font-medium text-gray-500 mt-1">Deportes activos</p>
         </div>
       </div>
 
-      {/* Accesos rápidos */}
-      <div className="grid grid-cols-3 gap-5">
+      {/* Accesos rápidos — Grilla Responsiva */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {[
           {
             icon: Building2,
@@ -229,7 +268,7 @@ export default function AdminDashboard() {
           <Link
             key={link}
             href={link}
-            className="group bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all"
+            className="group bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
           >
             <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center mb-4">
               <Icon className="w-4 h-4 text-red-600" />
@@ -244,35 +283,47 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Actividad reciente — solo lo importante */}
-      <div className="bg-white rounded-xl border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+      {/* Actividad reciente */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/30">
           <h2 className="text-sm font-semibold text-gray-900">Actividad reciente</h2>
-          {cargando && (
-            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-          )}
         </div>
 
-        {actividad.filter(isImportant).length === 0 && !cargando ? (
+        {cargandoInicial ? (
+          <div className="divide-y divide-gray-50">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-6 py-3.5 animate-pulse">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-gray-100 rounded w-1/4" />
+                  <div className="h-2.5 bg-gray-100 rounded w-1/3" />
+                </div>
+                <div className="h-2.5 bg-gray-100 rounded w-12 shrink-0" />
+              </div>
+            ))}
+          </div>
+        ) : actividadesImportantes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Clock className="w-8 h-8 text-gray-200 mb-3" strokeWidth={1.5} />
             <p className="text-sm font-medium text-gray-400">Sin actividad reciente</p>
-            <p className="text-xs text-gray-300 mt-1">Los cambios en el sistema aparecerán aquí</p>
+            <p className="text-xs text-gray-300 mt-1">Los cambios relevantes en el sistema aparecerán aquí</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {actividad.filter(isImportant).slice(0, 8).map((entry) => {
+            {actividadesImportantes.map((entry) => {
               const { icon, label, subtitle } = formatActivity(entry);
               return (
-                <div key={entry.id} className="flex items-center gap-3 px-6 py-3.5">
-                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                <div key={entry.id} className="flex items-center gap-3 px-6 py-3.5 hover:bg-gray-50/50 transition-colors">
+                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
                     {icon}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-700 truncate">{label}</p>
                     <p className="text-xs text-gray-400 truncate">{subtitle}</p>
                   </div>
-                  <span className="text-xs text-gray-300 shrink-0">{relativeTime(entry.creado_en)}</span>
+                  <span className="text-xs text-gray-400 font-medium shrink-0 bg-gray-50 px-2 py-1 rounded-md">
+                    {relativeTime(entry.creado_en)}
+                  </span>
                 </div>
               );
             })}

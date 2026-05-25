@@ -1,4 +1,4 @@
-// File: /home/orlando/UTP/SISTEMATICOS-staging/frontend/app/admin/equipos/page.tsx
+// File: C:\Users\CDOcix\Desktop\Arquitectura OS\SISTEMATICOS\frontend\app\admin\equipos\page.tsx
 import * as entry from '../../../../../app/admin/equipos/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
