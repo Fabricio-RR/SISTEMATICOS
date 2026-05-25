@@ -1,7 +1,9 @@
 {
-  "/admin/sorteos/page": "app/admin/sorteos/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/page": "app/page.js",
+  "/login/page": "app/login/page.js",
   "/admin/page": "app/admin/page.js",
-  "/admin/equipos/page": "app/admin/equipos/page.js",
-  "/admin/encuentros/page": "app/admin/encuentros/page.js",
-  "/admin/torneos/page": "app/admin/torneos/page.js"
+  "/admin/instituciones/page": "app/admin/instituciones/page.js",
+  "/admin/deportes/page": "app/admin/deportes/page.js",
+  "/admin/equipos/page": "app/admin/equipos/page.js"
 }

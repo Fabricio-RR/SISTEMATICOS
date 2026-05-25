@@ -208,7 +208,7 @@ Contexto: el proyecto está enmarcado en **Olimpiadas PERU**, plataforma para qu
 
 ---
 
-## Revisión 2 — 23/05/2026 (Claude Code — sesión automática)
+## Revisión 2 — 23/05/2026
 
 Revisión profunda de lógica, seguridad y rendimiento sobre la base implementada.  
 Se encontraron y corrigieron **11 bugs adicionales** (Ronda 1).  
