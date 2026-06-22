@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import {
   Trophy, LayoutDashboard, Building2, UserPlus, Swords,
   Shuffle, BarChart3, LogOut, Users, ChevronRight, Bell, ExternalLink,
-  Dumbbell, Medal, PersonStanding,
+  Dumbbell, Medal, PersonStanding, PieChart,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +20,7 @@ const navItems = [
   { href: "/admin/encuentros", label: "Encuentros", icon: Swords },
   { href: "/admin/sorteos", label: "Sorteos", icon: Shuffle },
   { href: "/admin/resultados", label: "Resultados", icon: BarChart3 },
+  { href: "/admin/reportes", label: "Reportes", icon: PieChart },
 ];
 
 const breadcrumbLabels: Record<string, string> = {
@@ -33,6 +34,7 @@ const breadcrumbLabels: Record<string, string> = {
   "/admin/encuentros": "Encuentros",
   "/admin/sorteos": "Sorteos",
   "/admin/resultados": "Resultados",
+  "/admin/reportes": "Reportes",
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

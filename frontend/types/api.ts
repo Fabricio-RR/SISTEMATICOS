@@ -429,6 +429,30 @@ export interface Goleador {
   etiqueta: string;
 }
 
+// ── Reportes ──────────────────────────────────────────────────────────────────
+
+export interface ResumenGeneral {
+  instituciones: number;
+  equipos: number;
+  atletas: number;
+  deportes: number;
+  torneos: number;
+  partidos_jugados: number;
+}
+
+export interface ParticipantesInstitucion {
+  institucion_id: number;
+  institucion: string;
+  equipos: number;
+  atletas: number;
+}
+
+export interface EquiposPorDeporte {
+  deporte_id: number;
+  deporte: string;
+  equipos: number;
+}
+
 // ── Auditoría ─────────────────────────────────────────────────────────────────
 
 export interface AuditoriaEntry {

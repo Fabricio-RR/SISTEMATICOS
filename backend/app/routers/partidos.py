@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -16,6 +16,7 @@ from app.schemas.partidos import PartidoUpdate, ResultadoUpdate, PartidoOut
 from app.core.deps import require_admin, require_admin_or_arbitro
 from app.models.usuarios import Usuario
 from app.services.competition import apply_result_change, recalculate_atleta_stats
+from app.services.email import send_email
 
 router = APIRouter()
 
@@ -96,7 +97,13 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{id}", response_model=PartidoOut)
-def update(id: int, data: PartidoUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+def update(
+    id: int,
+    data: PartidoUpdate,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
     p = _load_partido(id, db)
     if not p:
         raise HTTPException(status_code=404, detail="Partido no encontrado")
@@ -125,13 +132,15 @@ def update(id: int, data: PartidoUpdate, db: Session = Depends(get_db), _: Usuar
     if es_reprogramacion:
         p.motivo_reprogramacion = data.motivo_reprogramacion
         p.reprogramado_en = datetime.now(timezone.utc)
-        _crear_notificaciones_reprogramacion(p, data.motivo_reprogramacion, db)
+        _crear_notificaciones_reprogramacion(p, data.motivo_reprogramacion, db, background)
 
     db.commit()
     return _build_out(_load_partido(id, db))
 
 
-def _crear_notificaciones_reprogramacion(p: Partido, motivo: str, db: Session) -> None:
+def _crear_notificaciones_reprogramacion(
+    p: Partido, motivo: str, db: Session, background: BackgroundTasks
+) -> None:
     instituciones: set[int] = set()
     for insc in (p.local, p.visitante):
         if insc and insc.club_equipo:
@@ -140,14 +149,23 @@ def _crear_notificaciones_reprogramacion(p: Partido, motivo: str, db: Session) -
     local_nombre = p.local.club_equipo.nombre_equipo if p.local and p.local.club_equipo else "Local"
     visit_nombre = p.visitante.club_equipo.nombre_equipo if p.visitante and p.visitante.club_equipo else "Visitante"
     fecha_str = p.fecha_hora.strftime("%d/%m/%Y %H:%M") if p.fecha_hora else "por confirmar"
+    mensaje = f"{local_nombre} vs {visit_nombre} ha sido reprogramado para el {fecha_str}. Motivo: {motivo}"
 
     for inst_id in instituciones:
         db.add(Notificacion(
             institucion_id=inst_id,
             partido_id=p.id,
             titulo="Partido reprogramado",
-            contenido=f"{local_nombre} vs {visit_nombre} ha sido reprogramado para el {fecha_str}. Motivo: {motivo}",
+            contenido=mensaje,
         ))
+        # El mismo aviso, pero por correo. Se envía en segundo plano y si falla
+        # no afecta a la reprogramación del partido.
+        correo = (
+            db.query(Usuario.correo)
+            .filter(Usuario.institucion_id == inst_id, Usuario.rol == "institucion")
+            .scalar()
+        )
+        background.add_task(send_email, correo, "Partido reprogramado — Olimpiadas Perú", mensaje)
 
 
 @router.patch("/{id}/resultado", response_model=PartidoOut)

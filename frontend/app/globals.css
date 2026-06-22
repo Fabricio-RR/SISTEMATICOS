@@ -11,3 +11,43 @@ body {
   background: #ffffff;
   color: #1a1a1a;
 }
+
+/* Tipografía display para titulares (cargada por <link> en el layout raíz). */
+.font-display {
+  font-family: 'Sora', 'Inter', -apple-system, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ── Micro-animaciones ─────────────────────────────────────────────── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Esqueleto de carga con brillo deslizante. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: #e9edf2;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise { animation: none; }
+  .skeleton::after { animation: none; }
+}

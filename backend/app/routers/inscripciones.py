@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -11,6 +11,7 @@ from app.schemas.inscripciones import InscripcionCreate, InscripcionOut
 from app.core.deps import require_admin, get_current_user
 from app.models.usuarios import Usuario
 from app.services.competition import apply_walkover
+from app.services.email import send_email
 from app.services.enrollment import (
     assert_inscripcion_admin_change_allowed,
     assert_inscripcion_allowed,
@@ -19,6 +20,18 @@ from app.services.enrollment import (
 _ESTADOS_NO_ACTIVOS = ("rechazado", "retirado")
 
 router = APIRouter()
+
+
+def _correo_institucion(db: Session, institucion_id: int | None) -> str | None:
+    # Devuelve el correo con el que la institución se registró, para poder avisarle.
+    if not institucion_id:
+        return None
+    user = (
+        db.query(Usuario)
+        .filter(Usuario.institucion_id == institucion_id, Usuario.rol == "institucion")
+        .first()
+    )
+    return user.correo if user else None
 
 
 def _enrich(insc: Inscripcion) -> InscripcionOut:
@@ -65,7 +78,12 @@ def create(data: InscripcionCreate, db: Session = Depends(get_db), current: Usua
 
 
 @router.patch("/{id}/aprobar", response_model=InscripcionOut)
-def aprobar(id: int, db: Session = Depends(get_db), current_user: Usuario = Depends(require_admin)):
+def aprobar(
+    id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+):
     insc = db.query(Inscripcion).options(
         joinedload(Inscripcion.club_equipo), joinedload(Inscripcion.torneo)
     ).filter(Inscripcion.id == id).first()
@@ -73,6 +91,19 @@ def aprobar(id: int, db: Session = Depends(get_db), current_user: Usuario = Depe
         raise HTTPException(status_code=404, detail="Inscripción no encontrada")
     assert_inscripcion_admin_change_allowed(insc, db, action="aprobar")
     insc.estado = "aprobado"
+
+    equipo = insc.club_equipo.nombre_equipo if insc.club_equipo else "Tu equipo"
+    torneo = insc.torneo.nombre if insc.torneo else "el torneo"
+    institucion_id = insc.club_equipo.institucion_id if insc.club_equipo else None
+
+    # Aviso que la institución verá dentro del sistema, en su lista de notificaciones.
+    if institucion_id:
+        db.add(Notificacion(
+            institucion_id=institucion_id,
+            titulo="Inscripción aprobada",
+            contenido=f"La inscripción de {equipo} a {torneo} fue aprobada. ¡Mucha suerte!",
+        ))
+
     db.add(Auditoria(
         usuario_id=current_user.id,
         tabla_afectada="inscripciones",
@@ -80,6 +111,18 @@ def aprobar(id: int, db: Session = Depends(get_db), current_user: Usuario = Depe
         valor_nuevo=f"inscripcion_id={id} aprobada",
     ))
     db.commit()
+
+    # Además le enviamos un correo de confirmación. Se manda en segundo plano
+    # para no demorar la respuesta; si el correo falla, la aprobación ya quedó guardada.
+    correo = _correo_institucion(db, institucion_id)
+    background.add_task(
+        send_email,
+        correo,
+        "Inscripción aprobada — Olimpiadas Perú",
+        f"Hola,\n\nTu inscripción de \"{equipo}\" al torneo \"{torneo}\" ha sido aprobada.\n"
+        f"Ya puedes consultar el calendario y la tabla de posiciones en el portal.\n\n"
+        f"— Olimpiadas Perú",
+    )
     return _enrich(insc)
 
 

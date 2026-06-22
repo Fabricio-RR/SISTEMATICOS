@@ -219,6 +219,20 @@ venv/bin/python -m pytest tests
 
 La matriz de escenarios cubiertos está en [DOCS/logic-regression-matrix.md](DOCS/logic-regression-matrix.md).
 
+### Pruebas de rendimiento (carga)
+
+Con el backend corriendo, simular tráfico con [Locust](https://locust.io/):
+
+```bash
+cd backend
+venv/bin/locust -f tests/performance/locustfile.py --host http://localhost:8000
+# Abrir http://localhost:8089 y definir nº de usuarios
+
+# Modo headless con reporte CSV:
+venv/bin/locust -f tests/performance/locustfile.py --host http://localhost:8000 \
+  --headless -u 50 -r 10 -t 1m --csv reporte_rendimiento
+```
+
 ---
 
 ## Base de datos — 14 tablas
@@ -274,8 +288,24 @@ Flujo de 3 preguntas de seguridad:
 | GET | `/api/torneos/` | Listar torneos |
 | GET | `/api/sedes/` | Listar sedes |
 | GET | `/api/noticias/` | Noticias publicadas |
+| GET | `/api/estadisticas/goleadores?torneo_id=` | Tabla de goleadores |
+| GET | `/api/reportes/resumen` | Totales generales (admin) |
+| GET | `/api/reportes/participantes-por-institucion` | Reporte de participantes (admin) |
 
 > Documentación interactiva completa: `http://localhost:8000/docs`
+
+---
+
+## Notificaciones por correo (SMTP)
+
+El sistema envía correos en dos eventos (además de la notificación in-app):
+- **Inscripción aprobada** → confirmación al correo de la institución.
+- **Partido reprogramado** → aviso a las instituciones involucradas.
+
+Se configura por variables de entorno (ver `backend/.env.example`). **Con `EMAIL_ENABLED=false`
+(por defecto) los correos se registran en consola en vez de enviarse**, así cualquier integrante
+—incluido QE— puede levantar el entorno sin credenciales. Para envío real, completar `SMTP_*`
+(p. ej. Mailtrap o Gmail con contraseña de app).
 
 ---
 

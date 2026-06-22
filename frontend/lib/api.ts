@@ -33,6 +33,9 @@ import type {
   Goleador,
   Notificacion,
   AuditoriaEntry,
+  ResumenGeneral,
+  ParticipantesInstitucion,
+  EquiposPorDeporte,
 } from "@/types/api";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -337,6 +340,13 @@ export const api = {
     request<PosicionTabla[]>(`/api/estadisticas/tabla?torneo_id=${torneo_id}`),
   getGoleadores: (torneo_id: number, limit = 10) =>
     request<Goleador[]>(`/api/estadisticas/goleadores?torneo_id=${torneo_id}&limit=${limit}`),
+
+  // ── Reportes ──────────────────────────────────────────────────────────────────
+
+  getReporteResumen: () => request<ResumenGeneral>("/api/reportes/resumen"),
+  getParticipantesPorInstitucion: () =>
+    request<ParticipantesInstitucion[]>("/api/reportes/participantes-por-institucion"),
+  getEquiposPorDeporte: () => request<EquiposPorDeporte[]>("/api/reportes/equipos-por-deporte"),
 
   // ── Auditoría ─────────────────────────────────────────────────────────────────
 

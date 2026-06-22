@@ -5,7 +5,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.core.limiter import limiter
-from app.routers import auth, instituciones, usuarios, deportes, club_equipo, torneos, sedes, noticias, inscripciones, grupos, fixture, partidos, atleta_jugador, estadisticas, notificaciones, auditoria
+from app.routers import auth, instituciones, usuarios, deportes, club_equipo, torneos, sedes, noticias, inscripciones, grupos, fixture, partidos, atleta_jugador, estadisticas, notificaciones, auditoria, reportes
 
 app = FastAPI(
     title="Olimpiadas Perú API",
@@ -42,6 +42,7 @@ app.include_router(atleta_jugador.router, prefix="/api/atletas", tags=["Atletas"
 app.include_router(estadisticas.router, prefix="/api/estadisticas", tags=["Estadísticas"])
 app.include_router(notificaciones.router, prefix="/api/notificaciones", tags=["Notificaciones"])
 app.include_router(auditoria.router, prefix="/api/auditoria", tags=["Auditoría"])
+app.include_router(reportes.router, prefix="/api/reportes", tags=["Reportes"])
 
 
 @app.get("/", tags=["Raíz"])

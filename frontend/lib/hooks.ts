@@ -21,6 +21,7 @@ type QueryOpts = { refetchInterval?: number; enabled?: boolean };
 
 export const qk = {
   instituciones: () => ["instituciones"] as const,
+  noticias: () => ["noticias"] as const,
   deportes: (incluirInactivos = false) => ["deportes", { incluirInactivos }] as const,
   equipos: () => ["equipos"] as const,
   torneos: () => ["torneos"] as const,
@@ -33,10 +34,18 @@ export const qk = {
   tabla: (torneoId: number) => ["tabla", torneoId] as const,
   goleadores: (torneoId: number, limit = 10) => ["goleadores", torneoId, limit] as const,
   auditoria: (limit = 20) => ["auditoria", { limit }] as const,
+  reporteResumen: () => ["reporte", "resumen"] as const,
+  reporteParticipantes: () => ["reporte", "participantes"] as const,
+  reporteEquiposDeporte: () => ["reporte", "equipos-deporte"] as const,
 };
 
 export function useInstituciones(opts: QueryOpts = {}) {
   return useQuery({ queryKey: qk.instituciones(), queryFn: () => api.getInstituciones(), ...opts });
+}
+
+// Noticias publicadas del portal.
+export function useNoticias(opts: QueryOpts = {}) {
+  return useQuery({ queryKey: qk.noticias(), queryFn: () => api.getNoticias(), ...opts });
 }
 
 export function useDeportes(incluirInactivos = false, opts: QueryOpts = {}) {
@@ -108,4 +117,25 @@ export function useGoleadores(torneoId?: number, limit = 10, opts: QueryOpts = {
 
 export function useAuditoria(limit = 20, opts: QueryOpts = {}) {
   return useQuery({ queryKey: qk.auditoria(limit), queryFn: () => api.getAuditoria(limit), ...opts });
+}
+
+// Datos para los reportes del panel de administración (totales y conteos).
+export function useReporteResumen(opts: QueryOpts = {}) {
+  return useQuery({ queryKey: qk.reporteResumen(), queryFn: () => api.getReporteResumen(), ...opts });
+}
+
+export function useParticipantesPorInstitucion(opts: QueryOpts = {}) {
+  return useQuery({
+    queryKey: qk.reporteParticipantes(),
+    queryFn: () => api.getParticipantesPorInstitucion(),
+    ...opts,
+  });
+}
+
+export function useEquiposPorDeporte(opts: QueryOpts = {}) {
+  return useQuery({
+    queryKey: qk.reporteEquiposDeporte(),
+    queryFn: () => api.getEquiposPorDeporte(),
+    ...opts,
+  });
 }

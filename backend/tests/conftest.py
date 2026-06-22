@@ -10,6 +10,9 @@ from sqlalchemy.pool import StaticPool
 
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
+# En pruebas el correo siempre va en modo consola: ningún test debe enviar
+# correos reales aunque el .env local tenga SMTP configurado.
+os.environ["EMAIL_ENABLED"] = "false"
 
 import app.models  # noqa: E402,F401
 from app.database import Base, get_db  # noqa: E402
