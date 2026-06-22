@@ -2,9 +2,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Trophy, ArrowRight } from "lucide-react";
-import type { ClubEquipo } from "@/types/api";
+import type { ClubEquipo, Partido } from "@/types/api";
 
 const AVATAR_COLORS = ["bg-red-600", "bg-blue-600", "bg-gray-700", "bg-green-600", "bg-purple-600", "bg-orange-500"];
+
+const NAV_LINKS = [
+  { id: "inicio", label: "Inicio" },
+  { id: "clasificacion", label: "Clasificación" },
+  { id: "brackets", label: "Brackets" },
+  { id: "resultados", label: "Resultados" },
+];
 
 function initiales(nombre: string) {
   return nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -13,6 +20,24 @@ function initiales(nombre: string) {
 export default function LandingPage() {
   const [tabla, setTabla] = useState<ClubEquipo[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [resultados, setResultados] = useState<Partido[]>([]);
+  const [cargandoResultados, setCargandoResultados] = useState(true);
+  const [activo, setActivo] = useState("inicio");
+
+  useEffect(() => {
+    const onScroll = () => {
+      const offset = 80; // alto del navbar fijo (64px) + margen
+      let current = NAV_LINKS[0].id;
+      for (const { id } of NAV_LINKS) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= offset) current = id;
+      }
+      setActivo(current);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -26,6 +51,21 @@ export default function LandingPage() {
       })
       .catch(() => {})
       .finally(() => setCargando(false));
+
+    fetch(`${BASE}/api/partidos/?estado=finalizado`)
+      .then((r) => r.json())
+      .then((data: Partido[]) => {
+        const recientes = [...data]
+          .sort((a, b) => {
+            const ta = a.fecha_hora ? new Date(a.fecha_hora).getTime() : 0;
+            const tb = b.fecha_hora ? new Date(b.fecha_hora).getTime() : 0;
+            return tb - ta;
+          })
+          .slice(0, 6);
+        setResultados(recientes);
+      })
+      .catch(() => {})
+      .finally(() => setCargandoResultados(false));
   }, []);
   return (
     <div className="min-h-screen bg-white">
@@ -42,10 +82,19 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-            <a href="#inicio" className="text-red-600 border-b-2 border-red-600 pb-0.5">Inicio</a>
-            <a href="#clasificacion" className="hover:text-gray-900 transition-colors">Clasificación</a>
-            <a href="#brackets" className="hover:text-gray-900 transition-colors">Brackets</a>
-            <a href="#resultados" className="hover:text-gray-900 transition-colors">Resultados</a>
+            {NAV_LINKS.map(({ id, label }) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className={
+                  activo === id
+                    ? "text-red-600 border-b-2 border-red-600 pb-0.5"
+                    : "border-b-2 border-transparent pb-0.5 hover:text-gray-900 transition-colors"
+                }
+              >
+                {label}
+              </a>
+            ))}
           </div>
           <Link href="/login" className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
             Iniciar Sesión
@@ -76,7 +125,7 @@ export default function LandingPage() {
       </section>
 
       {/* Tabla */}
-      <section id="clasificacion" className="max-w-6xl mx-auto px-6 py-14">
+      <section id="clasificacion" className="scroll-mt-20 max-w-6xl mx-auto px-6 py-14">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-3xl font-black text-gray-900">Tablero General de Posiciones</h2>
           <div className="flex items-center gap-2">
@@ -139,7 +188,7 @@ export default function LandingPage() {
       </section>
 
       {/* Llaves */}
-      <section id="brackets" className="max-w-6xl mx-auto px-6 pb-16">
+      <section id="brackets" className="scroll-mt-20 max-w-6xl mx-auto px-6 pb-16">
         <div className="mb-8">
           <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">Road to Glory • Final Stage</p>
           <h2 className="text-3xl font-black text-gray-900 mt-1">Llaves del Torneo</h2>
@@ -184,6 +233,59 @@ export default function LandingPage() {
               <p className="text-xs text-gray-500 mt-1">25 de Noviembre • 20:00</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Resultados */}
+      <section id="resultados" className="scroll-mt-20 bg-gray-50 border-t border-gray-100">
+        <div className="max-w-6xl mx-auto px-6 py-14">
+          <div className="mb-8">
+            <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">Marcadores Finales</p>
+            <h2 className="text-3xl font-black text-gray-900 mt-1">Últimos Resultados</h2>
+          </div>
+          {cargandoResultados ? (
+            <p className="text-sm text-gray-400">Cargando...</p>
+          ) : resultados.length === 0 ? (
+            <div className="border border-gray-100 bg-white rounded-2xl p-10 text-center text-sm text-gray-400 shadow-sm">
+              Aún no hay partidos finalizados.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {resultados.map((p) => {
+                const localGano = (p.resultado_local ?? 0) > (p.resultado_visitante ?? 0);
+                const visitGano = (p.resultado_visitante ?? 0) > (p.resultado_local ?? 0);
+                return (
+                  <div key={p.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-4 gap-2">
+                      <span className="text-xs font-semibold text-red-600 truncate">{p.torneo_nombre || "Torneo"}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                        {p.es_walkover ? "W.O." : p.jornada ? `Jornada ${p.jornada}` : "Final"}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`text-sm truncate ${localGano ? "font-bold text-gray-900" : "text-gray-500"}`}>{p.local_nombre || "Local"}</span>
+                        <span className={`text-xl font-black ${localGano ? "text-red-600" : "text-gray-400"}`}>{p.resultado_local ?? "–"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`text-sm truncate ${visitGano ? "font-bold text-gray-900" : "text-gray-500"}`}>{p.visitante_nombre || "Visitante"}</span>
+                        <span className={`text-xl font-black ${visitGano ? "text-red-600" : "text-gray-400"}`}>{p.resultado_visitante ?? "–"}</span>
+                      </div>
+                    </div>
+                    {(p.fecha_hora || p.sede_nombre) && (
+                      <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400 truncate">
+                        {p.fecha_hora
+                          ? new Date(p.fecha_hora).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })
+                          : ""}
+                        {p.fecha_hora && p.sede_nombre ? " • " : ""}
+                        {p.sede_nombre}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
