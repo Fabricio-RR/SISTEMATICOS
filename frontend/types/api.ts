@@ -121,6 +121,12 @@ export interface DeporteCreate {
   tipo_competidor: TipoCompetidor;
 }
 
+export interface DeporteUpdate {
+  nombre?: string;
+  tipo_competidor?: TipoCompetidor;
+  esta_activo?: boolean;
+}
+
 // ── Equipos ───────────────────────────────────────────────────────────────────
 
 export type EstadoEquipo = "pendiente" | "aprobado" | "rechazado";
@@ -142,6 +148,10 @@ export interface ClubEquipoCreate {
   institucion_id: number;
   deporte_id: number;
   nombre_equipo: string;
+}
+
+export interface ClubEquipoUpdate {
+  nombre_equipo?: string;
 }
 
 // ── Torneos ───────────────────────────────────────────────────────────────────

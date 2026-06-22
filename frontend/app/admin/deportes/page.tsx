@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Trophy, Plus, Trash2, Search, AlertCircle, ShieldCheck } from "lucide-react";
+import { Trophy, Plus, Trash2, Search, AlertCircle, ShieldCheck, Pencil, Power, PowerOff } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Deporte, TipoCompetidor } from "@/types/api";
 
@@ -16,18 +16,42 @@ export default function DeportesPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
   const [eliminando, setEliminando]   = useState<number | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [toggling, setToggling] = useState<number | null>(null);
+  const [confirmarEliminar, setConfirmarEliminar] = useState<Deporte | null>(null);
+  const [errorConfirm, setErrorConfirm] = useState("");
 
   useEffect(() => { cargar(); }, []);
 
   async function cargar() {
     setCargando(true);
     setError("");
-    try { setDeportes(await api.getDeportes()); }
+    try { setDeportes(await api.getDeportes(true)); }
     catch { setError("No se pudo cargar los deportes."); }
     finally { setCargando(false); }
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  function abrirCrear() {
+    setEditId(null);
+    setForm({ nombre: "", tipo_competidor: "equipo" });
+    setErrorForm("");
+    setModal(true);
+  }
+
+  function abrirEditar(d: Deporte) {
+    setEditId(d.id);
+    setForm({ nombre: d.nombre, tipo_competidor: d.tipo_competidor });
+    setErrorForm("");
+    setModal(true);
+  }
+
+  function cerrarModal() {
+    setModal(false);
+    setEditId(null);
+    setErrorForm("");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (form.nombre.length > 100) {
       setErrorForm("El nombre del deporte no puede tener más de 100 caracteres.");
@@ -36,8 +60,9 @@ export default function DeportesPage() {
     setGuardando(true);
     setErrorForm("");
     try {
-      await api.createDeporte(form);
-      setModal(false);
+      if (editId == null) await api.createDeporte(form);
+      else await api.updateDeporte(editId, form);
+      cerrarModal();
       setForm({ nombre: "", tipo_competidor: "equipo" });
       await cargar();
     } catch (err) {
@@ -45,12 +70,26 @@ export default function DeportesPage() {
     } finally { setGuardando(false); }
   }
 
-  async function handleDelete(id: number) {
-    setEliminando(id);
+  async function handleToggleActivo(d: Deporte) {
+    setToggling(d.id);
     setError("");
-    try { await api.deleteDeporte(id); await cargar(); }
-    catch (err) { setError(err instanceof Error ? err.message : "No se pudo eliminar el deporte."); }
-    finally { setEliminando(null); }
+    try { await api.updateDeporte(d.id, { esta_activo: !d.esta_activo }); await cargar(); }
+    catch (err) { setError(err instanceof Error ? err.message : "No se pudo cambiar el estado del deporte."); }
+    finally { setToggling(null); }
+  }
+
+  async function handleDelete() {
+    if (!confirmarEliminar) return;
+    const id = confirmarEliminar.id;
+    setEliminando(id);
+    setErrorConfirm("");
+    try {
+      await api.deleteDeporte(id);
+      setConfirmarEliminar(null);
+      await cargar();
+    } catch (err) {
+      setErrorConfirm(err instanceof Error ? err.message : "No se pudo eliminar el deporte.");
+    } finally { setEliminando(null); }
   }
 
   const filtrados = deportes.filter((d) =>
@@ -66,7 +105,7 @@ export default function DeportesPage() {
           <p className="text-sm text-gray-400 mt-0.5">Gestión de disciplinas deportivas del torneo.</p>
         </div>
         <button
-          onClick={() => setModal(true)}
+          onClick={abrirCrear}
           className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -145,16 +184,37 @@ export default function DeportesPage() {
                     {d.esta_activo ? "Activo" : "Inactivo"}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-center">
-                  {!d.es_obligatorio && (
+                <td className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-3">
                     <button
-                      onClick={() => handleDelete(d.id)}
-                      disabled={eliminando === d.id}
-                      className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30"
+                      onClick={() => abrirEditar(d)}
+                      title="Editar"
+                      className="text-gray-300 hover:text-blue-500 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </button>
-                  )}
+                    {!d.es_obligatorio && (
+                      <button
+                        onClick={() => handleToggleActivo(d)}
+                        disabled={toggling === d.id}
+                        title={d.esta_activo ? "Desactivar" : "Activar"}
+                        className={`transition-colors disabled:opacity-30 ${
+                          d.esta_activo ? "text-gray-300 hover:text-amber-500" : "text-gray-300 hover:text-green-600"
+                        }`}
+                      >
+                        {d.esta_activo ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                      </button>
+                    )}
+                    {!d.es_obligatorio && (
+                      <button
+                        onClick={() => { setConfirmarEliminar(d); setErrorConfirm(""); }}
+                        title="Eliminar"
+                        className="text-gray-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -169,9 +229,9 @@ export default function DeportesPage() {
               <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
                 <Trophy className="w-4 h-4 text-red-600" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900">Nuevo deporte</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editId == null ? "Nuevo deporte" : "Editar deporte"}</h2>
             </div>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre</label>
                 <input
@@ -195,16 +255,48 @@ export default function DeportesPage() {
               </div>
               {errorForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorForm}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => { setModal(false); setErrorForm(""); }}
+                <button type="button" onClick={cerrarModal}
                   className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardando}
                   className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-2.5 rounded-lg text-sm transition">
-                  {guardando ? "Guardando..." : "Crear"}
+                  {guardando ? "Guardando..." : editId == null ? "Crear" : "Guardar"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {confirmarEliminar && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900">Eliminar deporte</h2>
+            </div>
+            <p className="text-sm text-gray-600">
+              ¿Seguro que deseas eliminar <span className="font-semibold text-gray-900">{confirmarEliminar.nombre}</span>?
+              Dejará de mostrarse en la lista, pero se conservará en la base de datos.
+            </p>
+            {errorConfirm && (
+              <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm text-red-600">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />{errorConfirm}
+              </div>
+            )}
+            <div className="flex gap-3 pt-5">
+              <button type="button" onClick={() => { setConfirmarEliminar(null); setErrorConfirm(""); }}
+                className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleDelete} disabled={eliminando === confirmarEliminar.id}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-2.5 rounded-lg text-sm transition">
+                {eliminando === confirmarEliminar.id ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -12,6 +12,12 @@ class DeporteCreate(DeporteBase):
     pass
 
 
+class DeporteUpdate(BaseModel):
+    nombre: str | None = None
+    tipo_competidor: str | None = None
+    esta_activo: bool | None = None
+
+
 class DeporteOut(DeporteBase):
     id: int
 

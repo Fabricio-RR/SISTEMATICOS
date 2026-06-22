@@ -9,8 +9,10 @@ import type {
   InstitucionCreate,
   Deporte,
   DeporteCreate,
+  DeporteUpdate,
   ClubEquipo,
   ClubEquipoCreate,
+  ClubEquipoUpdate,
   Torneo,
   TorneoCreate,
   Sede,
@@ -216,9 +218,12 @@ export const api = {
 
   // ── Deportes ─────────────────────────────────────────────────────────────────
 
-  getDeportes: () => request<Deporte[]>("/api/deportes/"),
+  getDeportes: (incluirInactivos = false) =>
+    request<Deporte[]>(`/api/deportes/${incluirInactivos ? "?incluir_inactivos=true" : ""}`),
   createDeporte: (data: DeporteCreate) =>
     request<Deporte>("/api/deportes/", { method: "POST", body: JSON.stringify(data) }),
+  updateDeporte: (id: number, data: DeporteUpdate) =>
+    request<Deporte>(`/api/deportes/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteDeporte: (id: number) => request<void>(`/api/deportes/${id}`, { method: "DELETE" }),
 
   // ── Equipos ───────────────────────────────────────────────────────────────────
@@ -226,6 +231,8 @@ export const api = {
   getEquipos: () => request<ClubEquipo[]>("/api/equipos/"),
   createEquipo: (data: ClubEquipoCreate) =>
     request<ClubEquipo>("/api/equipos/", { method: "POST", body: JSON.stringify(data) }),
+  updateEquipo: (id: number, data: ClubEquipoUpdate) =>
+    request<ClubEquipo>(`/api/equipos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   aprobarEquipo: (id: number) =>
     request<ClubEquipo>(`/api/equipos/${id}/aprobar`, { method: "PATCH" }),
   deleteEquipo: (id: number) => request<void>(`/api/equipos/${id}`, { method: "DELETE" }),

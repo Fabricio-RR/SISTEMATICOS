@@ -16,7 +16,8 @@ router = APIRouter()
 
 @router.get("/", response_model=list[ClubEquipoOut])
 def get_all(db: Session = Depends(get_db)):
-    return db.query(ClubEquipo).all()
+    # Los equipos eliminados (borrado lógico) no se listan, pero permanecen en la base de datos.
+    return db.query(ClubEquipo).filter(ClubEquipo.estado != "eliminado").all()
 
 
 @router.get("/{id}", response_model=ClubEquipoOut)
@@ -105,5 +106,6 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
             status_code=status.HTTP_409_CONFLICT,
             detail="No se puede eliminar un equipo que ya tiene inscripciones registradas",
         )
-    db.delete(equipo)
+    # Borrado lógico: se conserva en la base de datos pero deja de mostrarse.
+    equipo.estado = "eliminado"
     db.commit()

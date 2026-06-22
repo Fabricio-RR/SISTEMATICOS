@@ -15,7 +15,7 @@ class ClubEquipo(Base):
             name="uq_equipo_inst_dep_nombre",
         ),
         CheckConstraint(
-            "estado IN ('pendiente', 'aprobado', 'rechazado')",
+            "estado IN ('pendiente', 'aprobado', 'rechazado', 'eliminado')",
             name="ck_equipo_estado",
         ),
     )
@@ -24,7 +24,7 @@ class ClubEquipo(Base):
     institucion_id: Mapped[int] = mapped_column(Integer, ForeignKey("instituciones.id"))
     deporte_id: Mapped[int] = mapped_column(Integer, ForeignKey("deportes.id"))
     nombre_equipo: Mapped[str] = mapped_column(String(150))
-    estado: Mapped[str] = mapped_column(String(30), default="pendiente")  # pendiente, aprobado, rechazado
+    estado: Mapped[str] = mapped_column(String(30), default="pendiente")  # pendiente, aprobado, rechazado, eliminado
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     institucion: Mapped["Institucion"] = relationship("Institucion", back_populates="equipos")

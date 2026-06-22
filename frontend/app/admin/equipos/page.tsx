@@ -38,6 +38,16 @@ export default function EquiposPage() {
   const [desvinculando, setDesvinculando] = useState<number | null>(null);
   const [eliminandoAtleta, setEliminandoAtleta] = useState<number | null>(null);
 
+  // Edición de equipo (renombrar)
+  const [modalEditEquipo, setModalEditEquipo] = useState<ClubEquipo | null>(null);
+  const [formEditEquipo, setFormEditEquipo] = useState({ nombre_equipo: "" });
+  const [guardandoEditEquipo, setGuardandoEditEquipo] = useState(false);
+  const [errorEditEquipoForm, setErrorEditEquipoForm] = useState("");
+
+  // Confirmación de eliminación de equipo
+  const [confirmarEliminarEquipo, setConfirmarEliminarEquipo] = useState<ClubEquipo | null>(null);
+  const [errorConfirmEquipo, setErrorConfirmEquipo] = useState("");
+
   // Estados para inscribir equipo existente
   const [modalInscribir, setModalInscribir] = useState<ClubEquipo | null>(null);
   const [inscribirTorneoId, setInscribirTorneoId] = useState<number>(0);
@@ -300,12 +310,37 @@ export default function EquiposPage() {
     finally { setAprobando(null); }
   }
 
-  async function handleDelete(id: number) {
+  async function handleEditEquipo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!modalEditEquipo) return;
+    const nombre = formEditEquipo.nombre_equipo.trim();
+    if (!nombre) { setErrorEditEquipoForm("El nombre del equipo es obligatorio."); return; }
+    if (nombre.length > 50) { setErrorEditEquipoForm("El nombre del equipo no puede tener más de 50 caracteres."); return; }
+    setGuardandoEditEquipo(true);
+    setErrorEditEquipoForm("");
+    try {
+      await api.updateEquipo(modalEditEquipo.id, { nombre_equipo: nombre });
+      setModalEditEquipo(null);
+      setSuccess("Equipo actualizado correctamente.");
+      await cargar();
+    } catch (err) {
+      setErrorEditEquipoForm(err instanceof Error ? err.message : "Error al actualizar el equipo.");
+    } finally { setGuardandoEditEquipo(false); }
+  }
+
+  async function handleDelete() {
+    if (!confirmarEliminarEquipo) return;
+    const id = confirmarEliminarEquipo.id;
     setEliminando(id);
-    setError("");
-    try { await api.deleteEquipo(id); await cargar(); }
-    catch (err) { setError(err instanceof Error ? err.message : "No se pudo eliminar el equipo."); }
-    finally { setEliminando(null); }
+    setErrorConfirmEquipo("");
+    try {
+      await api.deleteEquipo(id);
+      setConfirmarEliminarEquipo(null);
+      setSuccess("Equipo eliminado correctamente.");
+      await cargar();
+    } catch (err) {
+      setErrorConfirmEquipo(err instanceof Error ? err.message : "No se pudo eliminar el equipo.");
+    } finally { setEliminando(null); }
   }
 
   async function handleInscribir(e: React.FormEvent) {
@@ -501,7 +536,7 @@ export default function EquiposPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-3">
                         {eq.estado === "pendiente" && (
                           <button
                             onClick={() => handleAprobar(eq.id)}
@@ -512,7 +547,18 @@ export default function EquiposPage() {
                             <CheckCircle className="w-4 h-4" />
                           </button>
                         )}
-                        <button onClick={() => handleDelete(eq.id)} disabled={eliminando === eq.id} className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30">
+                        <button
+                          onClick={() => { setModalEditEquipo(eq); setFormEditEquipo({ nombre_equipo: eq.nombre_equipo }); setErrorEditEquipoForm(""); }}
+                          title="Editar equipo"
+                          className="text-gray-300 hover:text-blue-500 transition-colors"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => { setConfirmarEliminarEquipo(eq); setErrorConfirmEquipo(""); }}
+                          title="Eliminar equipo"
+                          className="text-gray-300 hover:text-red-500 transition-colors"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -1107,6 +1153,81 @@ export default function EquiposPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para editar equipo (renombrar) */}
+      {modalEditEquipo && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
+                <Dumbbell className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Editar equipo</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {instMap.get(modalEditEquipo.institucion_id) ?? ""} · {depMap.get(modalEditEquipo.deporte_id) ?? ""}
+                </p>
+              </div>
+            </div>
+            <form onSubmit={handleEditEquipo} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre del equipo</label>
+                <input
+                  value={formEditEquipo.nombre_equipo}
+                  onChange={e => setFormEditEquipo({ nombre_equipo: e.target.value })}
+                  maxLength={50}
+                  required placeholder="Ej. UL Fútbol A"
+                  className={inputCls}
+                />
+              </div>
+              {errorEditEquipoForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorEditEquipoForm}</p>}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setModalEditEquipo(null); setErrorEditEquipoForm(""); }}
+                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={guardandoEditEquipo}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-2.5 rounded-lg text-sm transition">
+                  {guardandoEditEquipo ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación de eliminación de equipo */}
+      {confirmarEliminarEquipo && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900">Eliminar equipo</h2>
+            </div>
+            <p className="text-sm text-gray-600">
+              ¿Seguro que deseas eliminar <span className="font-semibold text-gray-900">{confirmarEliminarEquipo.nombre_equipo}</span>?
+              Dejará de mostrarse en la lista, pero se conservará en la base de datos.
+            </p>
+            {errorConfirmEquipo && (
+              <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm text-red-600">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />{errorConfirmEquipo}
+              </div>
+            )}
+            <div className="flex gap-3 pt-5">
+              <button type="button" onClick={() => { setConfirmarEliminarEquipo(null); setErrorConfirmEquipo(""); }}
+                className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleDelete} disabled={eliminando === confirmarEliminarEquipo.id}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-2.5 rounded-lg text-sm transition">
+                {eliminando === confirmarEliminarEquipo.id ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
