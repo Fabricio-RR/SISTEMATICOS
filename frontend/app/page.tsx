@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Trophy, ArrowRight } from "lucide-react";
-import type { ClubEquipo, Partido } from "@/types/api";
+import { useEquipos, usePartidos } from "@/lib/hooks";
 
 const AVATAR_COLORS = ["bg-red-600", "bg-blue-600", "bg-gray-700", "bg-green-600", "bg-purple-600", "bg-orange-500"];
 
@@ -18,11 +18,24 @@ function initiales(nombre: string) {
 }
 
 export default function LandingPage() {
-  const [tabla, setTabla] = useState<ClubEquipo[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [resultados, setResultados] = useState<Partido[]>([]);
-  const [cargandoResultados, setCargandoResultados] = useState(true);
   const [activo, setActivo] = useState("inicio");
+
+  const equiposQ = useEquipos();
+  const partidosQ = usePartidos({ estado: "finalizado" });
+  const cargando = equiposQ.isLoading;
+  const cargandoResultados = partidosQ.isLoading;
+
+  const tabla = [...(equiposQ.data ?? [])]
+    .filter((e) => e.partidos_jugados > 0)
+    .sort((a, b) => b.puntos - a.puntos || b.partidos_ganados - a.partidos_ganados);
+
+  const resultados = [...(partidosQ.data ?? [])]
+    .sort((a, b) => {
+      const ta = a.fecha_hora ? new Date(a.fecha_hora).getTime() : 0;
+      const tb = b.fecha_hora ? new Date(b.fecha_hora).getTime() : 0;
+      return tb - ta;
+    })
+    .slice(0, 6);
 
   useEffect(() => {
     const onScroll = () => {
@@ -39,34 +52,6 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    fetch(`${BASE}/api/equipos/`)
-      .then((r) => r.json())
-      .then((data: ClubEquipo[]) => {
-        const ordenados = [...data]
-          .filter((e) => e.partidos_jugados > 0)
-          .sort((a, b) => b.puntos - a.puntos || b.partidos_ganados - a.partidos_ganados);
-        setTabla(ordenados);
-      })
-      .catch(() => {})
-      .finally(() => setCargando(false));
-
-    fetch(`${BASE}/api/partidos/?estado=finalizado`)
-      .then((r) => r.json())
-      .then((data: Partido[]) => {
-        const recientes = [...data]
-          .sort((a, b) => {
-            const ta = a.fecha_hora ? new Date(a.fecha_hora).getTime() : 0;
-            const tb = b.fecha_hora ? new Date(b.fecha_hora).getTime() : 0;
-            return tb - ta;
-          })
-          .slice(0, 6);
-        setResultados(recientes);
-      })
-      .catch(() => {})
-      .finally(() => setCargandoResultados(false));
-  }, []);
   return (
     <div className="min-h-screen bg-white">
       {/* Navbar */}

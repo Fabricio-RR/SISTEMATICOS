@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Medal, Plus, Trash2, Search, AlertCircle, ChevronRight, PauseCircle, Lock, Shuffle, Play, Award, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { Torneo, Deporte, FormatoTorneo, EstadoTorneo } from "@/types/api";
+import { useTorneos, useDeportes, useFixture } from "@/lib/hooks";
+import type { FormatoTorneo, EstadoTorneo } from "@/types/api";
 import {
   ESTADO_TORNEO_LABEL,
   ESTADO_TORNEO_BADGE,
@@ -58,10 +60,21 @@ const FASES_TORNEO: { key: EstadoTorneo; label: string }[] = [
 ];
 
 export default function TorneosPage() {
-  const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [deportes, setDeportes] = useState<Deporte[]>([]);
+  const queryClient = useQueryClient();
+  const torneosQ = useTorneos();
+  const deportesQ = useDeportes();
+  const fixtureQ = useFixture();
+  const torneos = torneosQ.data ?? [];
+  const deportes = deportesQ.data ?? [];
+  const torneosConFixture = new Set((fixtureQ.data ?? []).map((f) => f.torneo_id));
+  const cargando = torneosQ.isLoading || deportesQ.isLoading || fixtureQ.isLoading;
+  const recargar = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["torneos"] }),
+      queryClient.invalidateQueries({ queryKey: ["fixture"] }),
+    ]);
+
   const [busqueda, setBusqueda] = useState("");
-  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
@@ -72,21 +85,8 @@ export default function TorneosPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
   const [accionando, setAccionando] = useState<number | null>(null);
-  const [torneosConFixture, setTorneosConFixture] = useState<Set<number>>(new Set());
 
-  useEffect(() => { cargar(); }, []);
-
-  async function cargar() {
-    setCargando(true);
-    setError("");
-    try {
-      const [torn, dep, fixes] = await Promise.all([api.getTorneos(), api.getDeportes(), api.getFixture()]);
-      setTorneos(torn);
-      setDeportes(dep);
-      setTorneosConFixture(new Set(fixes.map(f => f.torneo_id)));
-    } catch { setError("No se pudo cargar los torneos."); }
-    finally { setCargando(false); }
-  }
+  const errorMostrado = error || ((torneosQ.isError || deportesQ.isError || fixtureQ.isError) ? "No se pudo cargar los torneos." : "");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -105,7 +105,7 @@ export default function TorneosPage() {
       await api.createTorneo(form);
       setModal(false);
       setForm({ nombre: "", deporte_id: 0, formato: "liga", temporada: new Date().getFullYear().toString() });
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
     } finally { setGuardando(false); }
@@ -116,7 +116,7 @@ export default function TorneosPage() {
     setError("");
     try {
       await api.avanzarTorneo(id);
-      await cargar();
+      await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al avanzar el torneo.");
       if (typeof window !== "undefined") {
@@ -132,7 +132,7 @@ export default function TorneosPage() {
     setError("");
     try {
       await api.reactivarTorneo(id);
-      await cargar();
+      await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al reactivar el torneo.");
       if (typeof window !== "undefined") {
@@ -148,7 +148,7 @@ export default function TorneosPage() {
     setError("");
     try {
       await api.suspenderTorneo(id);
-      await cargar();
+      await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al suspender el torneo.");
       if (typeof window !== "undefined") {
@@ -163,7 +163,7 @@ export default function TorneosPage() {
     setError("");
     try {
       await api.deleteTorneo(id);
-      await cargar();
+      await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo eliminar el torneo.");
       if (typeof window !== "undefined") {
@@ -195,9 +195,9 @@ export default function TorneosPage() {
         </button>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+          <AlertCircle className="w-4 h-4 shrink-0" />{errorMostrado}
         </div>
       )}
 

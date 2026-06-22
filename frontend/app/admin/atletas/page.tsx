@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { User, Plus, Trash2, Search, AlertCircle, Save, ChevronDown } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAtletas, useEquipos, useDeportes } from "@/lib/hooks";
 import type { AtletaJugador, ClubEquipo, Deporte } from "@/types/api";
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
@@ -15,12 +17,9 @@ function esFutbol(deporte: Deporte | undefined): boolean {
 }
 
 export default function AtletasAdminPage() {
-  const [atletas, setAtletas] = useState<AtletaJugador[]>([]);
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([]);
-  const [deportes, setDeportes] = useState<Deporte[]>([]);
+  const queryClient = useQueryClient();
   const [equipoFiltro, setEquipoFiltro] = useState<number | undefined>();
   const [busqueda, setBusqueda] = useState("");
-  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ club_equipo_id: 0, nombre_completo: "", numero_camiseta: "", posicion_rol: "", documento_identidad: "" });
@@ -31,29 +30,18 @@ export default function AtletasAdminPage() {
   const [guardandoStat, setGuardandoStat] = useState<number | null>(null);
   const [expandido, setExpandido] = useState<Set<number>>(new Set());
 
+  const atletasQ = useAtletas(equipoFiltro);
+  const equiposQ = useEquipos();
+  const deportesQ = useDeportes();
+  const atletas = atletasQ.data ?? [];
+  const equipos = equiposQ.data ?? [];
+  const deportes = deportesQ.data ?? [];
+  const cargando = atletasQ.isLoading || equiposQ.isLoading || deportesQ.isLoading;
+  const recargar = () => queryClient.invalidateQueries({ queryKey: ["atletas"] });
+  const errorMostrado = error || ((atletasQ.isError || equiposQ.isError || deportesQ.isError) ? "No se pudo cargar los atletas." : "");
+
   const depMap = new Map(deportes.map((d) => [d.id, d]));
   const eqMap = new Map(equipos.map((e) => [e.id, e]));
-
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
-    try {
-      const [a, eq, dep] = await Promise.all([
-        api.getAtletas(equipoFiltro),
-        api.getEquipos(),
-        api.getDeportes(),
-      ]);
-      setAtletas(a);
-      setEquipos(eq);
-      setDeportes(dep);
-    } catch {
-      setError("No se pudo cargar los atletas.");
-    } finally {
-      setCargando(false);
-    }
-  }, [equipoFiltro]);
-
-  useEffect(() => { cargar(); }, [cargar]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +58,7 @@ export default function AtletasAdminPage() {
       });
       setModal(false);
       setForm({ club_equipo_id: 0, nombre_completo: "", numero_camiseta: "", posicion_rol: "", documento_identidad: "" });
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -80,7 +68,7 @@ export default function AtletasAdminPage() {
   async function handleDelete(id: number) {
     setEliminando(id);
     setError("");
-    try { await api.deleteAtleta(id); await cargar(); }
+    try { await api.deleteAtleta(id); await recargar(); }
     catch (err) { setError(err instanceof Error ? err.message : "No se pudo eliminar el atleta."); }
     finally { setEliminando(null); }
   }
@@ -92,7 +80,7 @@ export default function AtletasAdminPage() {
     try {
       await api.updateAtleta(atleta.id, cambios);
       setEditStats((prev) => { const next = { ...prev }; delete next[atleta.id]; return next; });
-      await cargar();
+      await recargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -271,9 +259,9 @@ export default function AtletasAdminPage() {
         </button>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+          <AlertCircle className="w-4 h-4 shrink-0" />{errorMostrado}
         </div>
       )}
 

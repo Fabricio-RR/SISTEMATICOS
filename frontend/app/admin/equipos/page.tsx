@@ -2,7 +2,9 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Dumbbell, Plus, Trash2, Search, AlertCircle, CheckCircle, Trophy, Link2, Unlink, ChevronDown, User, UserPlus, Save, Edit } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useEquipos, useInstituciones, useDeportes, useTorneos, useInscripciones } from "@/lib/hooks";
 import type { ClubEquipo, Institucion, Deporte, Torneo, Inscripcion, AtletaJugador } from "@/types/api";
 
 function esFutbol(deporte: Deporte | undefined): boolean {
@@ -20,13 +22,25 @@ const ESTADO_BADGE: Record<string, string> = {
 };
 
 export default function EquiposPage() {
-  const [equipos, setEquipos]           = useState<ClubEquipo[]>([]);
-  const [instituciones, setInstituciones] = useState<Institucion[]>([]);
-  const [deportes, setDeportes]         = useState<Deporte[]>([]);
-  const [torneos, setTorneos]           = useState<Torneo[]>([]);
-  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
+  const queryClient = useQueryClient();
+  const equiposQ = useEquipos();
+  const institucionesQ = useInstituciones();
+  const deportesQ = useDeportes();
+  const torneosQ = useTorneos();
+  const inscripcionesQ = useInscripciones();
+  const equipos = equiposQ.data ?? [];
+  const instituciones = institucionesQ.data ?? [];
+  const deportes = deportesQ.data ?? [];
+  const torneos = torneosQ.data ?? [];
+  const inscripciones = inscripcionesQ.data ?? [];
+  const cargando = equiposQ.isLoading || institucionesQ.isLoading || deportesQ.isLoading || torneosQ.isLoading || inscripcionesQ.isLoading;
+  const recargar = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["equipos"] }),
+      queryClient.invalidateQueries({ queryKey: ["inscripciones"] }),
+    ]);
+
   const [busqueda, setBusqueda]         = useState("");
-  const [cargando, setCargando]         = useState(true);
   const [error, setError]               = useState("");
   const [success, setSuccess]           = useState("");
   const [modal, setModal]               = useState(false);
@@ -233,7 +247,6 @@ export default function EquiposPage() {
     }
   }
 
-  useEffect(() => { cargar(); }, []);
   useEffect(() => {
     if (!form.deporte_id || !form.torneo_id) return;
     const torneoValido = torneos.some(
@@ -243,26 +256,6 @@ export default function EquiposPage() {
       setForm((prev) => ({ ...prev, torneo_id: 0 }));
     }
   }, [form.deporte_id, form.torneo_id, torneos]);
-
-  async function cargar() {
-    setCargando(true);
-    setError("");
-    try {
-      const [eq, inst, dep, torn, insc] = await Promise.all([
-        api.getEquipos(),
-        api.getInstituciones(),
-        api.getDeportes(),
-        api.getTorneos(),
-        api.getInscripciones(),
-      ]);
-      setEquipos(eq);
-      setInstituciones(inst);
-      setDeportes(dep);
-      setTorneos(torn);
-      setInscripciones(insc);
-    } catch { setError("No se pudo cargar los equipos."); }
-    finally { setCargando(false); }
-  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -297,7 +290,7 @@ export default function EquiposPage() {
 
       setModal(false);
       setForm({ nombre_equipo: "", institucion_id: 0, deporte_id: 0, torneo_id: 0 });
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
     } finally { setGuardando(false); }
@@ -305,7 +298,7 @@ export default function EquiposPage() {
 
   async function handleAprobar(id: number) {
     setAprobando(id);
-    try { await api.aprobarEquipo(id); await cargar(); }
+    try { await api.aprobarEquipo(id); await recargar(); }
     catch (err) { setError(err instanceof Error ? err.message : "No se pudo aprobar el equipo."); }
     finally { setAprobando(null); }
   }
@@ -322,7 +315,7 @@ export default function EquiposPage() {
       await api.updateEquipo(modalEditEquipo.id, { nombre_equipo: nombre });
       setModalEditEquipo(null);
       setSuccess("Equipo actualizado correctamente.");
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorEditEquipoForm(err instanceof Error ? err.message : "Error al actualizar el equipo.");
     } finally { setGuardandoEditEquipo(false); }
@@ -337,7 +330,7 @@ export default function EquiposPage() {
       await api.deleteEquipo(id);
       setConfirmarEliminarEquipo(null);
       setSuccess("Equipo eliminado correctamente.");
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorConfirmEquipo(err instanceof Error ? err.message : "No se pudo eliminar el equipo.");
     } finally { setEliminando(null); }
@@ -358,7 +351,7 @@ export default function EquiposPage() {
       setSuccess(`Equipo "${modalInscribir.nombre_equipo}" inscrito en "${t?.nombre}".`);
       setModalInscribir(null);
       setInscribirTorneoId(0);
-      await cargar();
+      await recargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al inscribir equipo en torneo.");
     } finally {
@@ -373,7 +366,7 @@ export default function EquiposPage() {
     try {
       await api.deleteInscripcion(inscripcionId);
       setSuccess(`Se desvinculó al equipo "${equipoNombre}" del torneo.`);
-      await cargar();
+      await recargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo desvincular el equipo.");
     } finally {
@@ -394,9 +387,14 @@ export default function EquiposPage() {
     (instMap.get(eq.institucion_id) ?? "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  const errorHint = error.includes("inscripciones")
+  const errorCarga =
+    equiposQ.isError || institucionesQ.isError || deportesQ.isError || torneosQ.isError || inscripcionesQ.isError
+      ? "No se pudo cargar los equipos."
+      : "";
+  const errorMostrado = error || errorCarga;
+  const errorHint = errorMostrado.includes("inscripciones")
     ? { text: "Revisa las inscripciones y retira/elimina el equipo primero.", href: "/admin/inscripciones" }
-    : error.includes("atletas")
+    : errorMostrado.includes("atletas")
       ? { text: "Elimina o reasigna los atletas antes de borrar el equipo.", href: "/admin/atletas" }
       : null;
 
@@ -417,11 +415,11 @@ export default function EquiposPage() {
         </button>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p>{error}</p>
+            <p>{errorMostrado}</p>
             {errorHint && (
               <Link href={errorHint.href} className="inline-flex text-xs font-semibold text-red-700 hover:underline">
                 {errorHint.text}

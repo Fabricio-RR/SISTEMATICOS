@@ -1,15 +1,21 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Trophy, Plus, Trash2, Search, AlertCircle, ShieldCheck, Pencil, Power, PowerOff } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useDeportes } from "@/lib/hooks";
 import type { Deporte, TipoCompetidor } from "@/types/api";
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
 
 export default function DeportesPage() {
-  const [deportes, setDeportes] = useState<Deporte[]>([]);
+  const queryClient = useQueryClient();
+  const deportesQ = useDeportes(true);
+  const deportes = deportesQ.data ?? [];
+  const cargando = deportesQ.isLoading;
+  const recargar = () => queryClient.invalidateQueries({ queryKey: ["deportes"] });
+
   const [busqueda, setBusqueda] = useState("");
-  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ nombre: "", tipo_competidor: "equipo" as TipoCompetidor });
@@ -21,15 +27,7 @@ export default function DeportesPage() {
   const [confirmarEliminar, setConfirmarEliminar] = useState<Deporte | null>(null);
   const [errorConfirm, setErrorConfirm] = useState("");
 
-  useEffect(() => { cargar(); }, []);
-
-  async function cargar() {
-    setCargando(true);
-    setError("");
-    try { setDeportes(await api.getDeportes(true)); }
-    catch { setError("No se pudo cargar los deportes."); }
-    finally { setCargando(false); }
-  }
+  const errorMostrado = error || (deportesQ.isError ? "No se pudo cargar los deportes." : "");
 
   function abrirCrear() {
     setEditId(null);
@@ -64,7 +62,7 @@ export default function DeportesPage() {
       else await api.updateDeporte(editId, form);
       cerrarModal();
       setForm({ nombre: "", tipo_competidor: "equipo" });
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
     } finally { setGuardando(false); }
@@ -73,7 +71,7 @@ export default function DeportesPage() {
   async function handleToggleActivo(d: Deporte) {
     setToggling(d.id);
     setError("");
-    try { await api.updateDeporte(d.id, { esta_activo: !d.esta_activo }); await cargar(); }
+    try { await api.updateDeporte(d.id, { esta_activo: !d.esta_activo }); await recargar(); }
     catch (err) { setError(err instanceof Error ? err.message : "No se pudo cambiar el estado del deporte."); }
     finally { setToggling(null); }
   }
@@ -86,7 +84,7 @@ export default function DeportesPage() {
     try {
       await api.deleteDeporte(id);
       setConfirmarEliminar(null);
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorConfirm(err instanceof Error ? err.message : "No se pudo eliminar el deporte.");
     } finally { setEliminando(null); }
@@ -113,9 +111,9 @@ export default function DeportesPage() {
         </button>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+          <AlertCircle className="w-4 h-4 shrink-0" />{errorMostrado}
         </div>
       )}
 

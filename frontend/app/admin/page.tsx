@@ -1,20 +1,12 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Radio, Users, Calendar, Trophy,
   Building2, Shuffle, BarChart3,
   Clock, ArrowRight, Edit3, UserPlus, FileText,
 } from "lucide-react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { usePartidos, useAtletas, useDeportes, useAuditoria } from "@/lib/hooks";
 import type { AuditoriaEntry } from "@/types/api";
-
-interface Stats {
-  deportes: number;
-  enCurso: number;
-  programados: number;
-  atletas: number;
-}
 
 function isImportant(entry: AuditoriaEntry): boolean {
   if (entry.tabla_afectada === "partidos" && entry.accion === "UPDATE") return true;
@@ -87,56 +79,31 @@ function relativeTime(dateStr: string): string {
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({
-    deportes: 0, enCurso: 0, programados: 0, atletas: 0,
-  });
-  const [actividad, setActividad] = useState<AuditoriaEntry[]>([]);
-  const [error, setError] = useState("");
-  const [cargando, setCargando] = useState(true);
-  const errorRef = useRef(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Refresco "EN VIVO": cada query se actualiza sola cada 30s y de forma independiente.
+  const poll = { refetchInterval: 30_000 };
+  const enCursoQ = usePartidos({ torneo_estado: "en_curso" }, poll);
+  const programadosQ = usePartidos({ estado: "programado" }, poll);
+  const atletasQ = useAtletas(undefined, undefined, undefined, poll);
+  const deportesQ = useDeportes(false, poll);
+  const auditoriaQ = useAuditoria(10, poll);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [enCurso, programados, atletas, deportes, auditoriaLogs] = await Promise.all([
-        api.getPartidos({ torneo_estado: "en_curso" }),
-        api.getPartidos({ estado: "programado" }),
-        api.getAtletas(),
-        api.getDeportes(),
-        api.getAuditoria(10),
-      ]);
-      setStats({
-        deportes: deportes.length,
-        enCurso: enCurso.length,
-        programados: programados.length,
-        atletas: atletas.length,
-      });
-      setActividad(auditoriaLogs);
-      setError("");
-      errorRef.current = false;
-    } catch {
-      if (!errorRef.current) {
-        setError("No se pudo conectar con el servidor. Verifica que el backend esté activo.");
-        errorRef.current = true;
-      }
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    intervalRef.current = setInterval(fetchData, 30_000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [fetchData]);
+  const stats = {
+    deportes: deportesQ.data?.length ?? 0,
+    enCurso: enCursoQ.data?.length ?? 0,
+    programados: programadosQ.data?.length ?? 0,
+    atletas: atletasQ.data?.length ?? 0,
+  };
+  const actividad: AuditoriaEntry[] = auditoriaQ.data ?? [];
+  const cargando = auditoriaQ.isLoading;
+  // Si alguna métrica falla, las demás siguen mostrándose; solo avisamos del fallo parcial.
+  const hayError =
+    enCursoQ.isError || programadosQ.isError || atletasQ.isError || deportesQ.isError || auditoriaQ.isError;
 
   return (
     <div className="space-y-6">
-      {error && (
+      {hayError && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
-          {error}
+          No se pudo conectar con el servidor. Verifica que el backend esté activo.
         </div>
       )}
 

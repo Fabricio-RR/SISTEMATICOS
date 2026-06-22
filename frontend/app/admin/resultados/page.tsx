@@ -1,21 +1,39 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { BarChart3, RefreshCw, Filter, AlertCircle, X, Trophy, Users, Swords } from "lucide-react";
-import { api } from "@/lib/api";
-import type { Torneo, PosicionTabla, Goleador, Partido, Deporte } from "@/types/api";
+import { useState } from "react";
+import { BarChart3, RefreshCw, Filter, AlertCircle, Trophy, Users, Swords } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTorneos, useDeportes, useTabla, useGoleadores, usePartidos } from "@/lib/hooks";
+import type { Torneo } from "@/types/api";
 
 type Tab = "tabla" | "goleadores" | "partidos";
 
 export default function ResultadosPage() {
-  const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [deportes, setDeportes] = useState<Deporte[]>([]);
+  const queryClient = useQueryClient();
   const [torneoId, setTorneoId] = useState<number | undefined>();
   const [tab, setTab] = useState<Tab>("tabla");
-  const [tabla, setTabla] = useState<PosicionTabla[]>([]);
-  const [goleadores, setGoleadores] = useState<Goleador[]>([]);
-  const [partidos, setPartidos] = useState<Partido[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState("");
+
+  const torneosQ = useTorneos();
+  const deportesQ = useDeportes();
+  const torneos = torneosQ.data ?? [];
+  const deportes = deportesQ.data ?? [];
+
+  const tablaQ = useTabla(torneoId);
+  const goleadoresQ = useGoleadores(torneoId);
+  const partidosQ = usePartidos(torneoId ? { torneo_id: torneoId } : undefined, { enabled: !!torneoId });
+  const tabla = tablaQ.data ?? [];
+  const goleadores = goleadoresQ.data ?? [];
+  const partidos = (partidosQ.data ?? []).filter(p => p.estado === "finalizado");
+
+  const cargando =
+    torneosQ.isLoading || deportesQ.isLoading ||
+    (!!torneoId && (tablaQ.isLoading || goleadoresQ.isLoading || partidosQ.isLoading));
+  const errorMostrado =
+    torneosQ.isError || deportesQ.isError
+      ? "No se pudo cargar los torneos."
+      : torneoId && (tablaQ.isError || goleadoresQ.isError || partidosQ.isError)
+        ? "No se pudieron cargar las estadísticas."
+        : "";
+  const recargar = () => queryClient.invalidateQueries();
 
   const depMap = new Map(deportes.map(d => [d.id, d]));
 
@@ -26,38 +44,6 @@ export default function ResultadosPage() {
     const n = dep.nombre.toLowerCase();
     return n.includes("fútbol") || n.includes("futbol");
   }
-
-  const cargar = useCallback(async () => {
-    setCargando(true); setError("");
-    try {
-      const [t, deps] = await Promise.all([api.getTorneos(), api.getDeportes()]);
-      setTorneos(t);
-      setDeportes(deps);
-    } catch { setError("No se pudo cargar los torneos."); }
-    finally { setCargando(false); }
-  }, []);
-
-  useEffect(() => { cargar(); }, [cargar]);
-
-  const cargarStats = useCallback(async (id: number) => {
-    setCargando(true); setError("");
-    try {
-      const [tabData, golData, partData] = await Promise.all([
-        api.getTabla(id),
-        api.getGoleadores(id),
-        api.getPartidos({ torneo_id: id }),
-      ]);
-      setTabla(tabData);
-      setGoleadores(golData);
-      setPartidos(partData.filter(p => p.estado === "finalizado"));
-    } catch { setError("No se pudieron cargar las estadísticas."); }
-    finally { setCargando(false); }
-  }, []);
-
-  useEffect(() => {
-    if (torneoId) cargarStats(torneoId);
-    else { setTabla([]); setGoleadores([]); setPartidos([]); }
-  }, [torneoId, cargarStats]);
 
   const torneoSeleccionado = torneos.find(t => t.id === torneoId);
   const esFut = esFutbol(torneoSeleccionado);
@@ -83,15 +69,14 @@ export default function ResultadosPage() {
           <h1 className="text-2xl font-bold text-gray-900 mt-1">Resultados</h1>
           <p className="text-sm text-gray-400 mt-0.5">Consulta tablas de posiciones, goleadores e historial de partidos.</p>
         </div>
-        <button onClick={cargar} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm">
+        <button onClick={recargar} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm">
           <RefreshCw className="w-4 h-4" /> Actualizar
         </button>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-          <button onClick={() => setError("")} className="ml-auto"><X className="w-4 h-4 text-red-400 hover:text-red-600" /></button>
+          <AlertCircle className="w-4 h-4 shrink-0" /> {errorMostrado}
         </div>
       )}
 

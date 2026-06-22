@@ -1,11 +1,13 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   ClipboardList, CheckCircle, XCircle, Search,
   RefreshCw, Trash2, Plus, Filter, AlertCircle, LogOut,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { Inscripcion, Torneo, ClubEquipo, EstadoInscripcion, InscripcionCreate, Partido } from "@/types/api";
+import { useInscripciones, useTorneos, useEquipos, usePartidos } from "@/lib/hooks";
+import type { EstadoInscripcion, InscripcionCreate } from "@/types/api";
 
 type Tab = EstadoInscripcion;
 
@@ -24,41 +26,31 @@ const BADGE: Record<EstadoInscripcion, string> = {
 };
 
 export default function InscripcionesPage() {
-  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
-  const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [equipos, setEquipos] = useState<ClubEquipo[]>([]);
-  const [partidos, setPartidos] = useState<Partido[]>([]);
+  const queryClient = useQueryClient();
+  const inscQ = useInscripciones();
+  const torneosQ = useTorneos();
+  const equiposQ = useEquipos();
+  const partidosQ = usePartidos();
+  const inscripciones = inscQ.data ?? [];
+  const torneos = torneosQ.data ?? [];
+  const equipos = equiposQ.data ?? [];
+  const partidos = partidosQ.data ?? [];
+  const cargando = inscQ.isLoading || torneosQ.isLoading || equiposQ.isLoading || partidosQ.isLoading;
+  const recargar = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["inscripciones"] }),
+      queryClient.invalidateQueries({ queryKey: ["partidos"] }),
+    ]);
+
   const [tab, setTab] = useState<Tab>("pendiente");
   const [torneoFiltro, setTorneoFiltro] = useState<number | undefined>();
   const [busqueda, setBusqueda] = useState("");
-  const [cargando, setCargando] = useState(true);
   const [accion, setAccion] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<InscripcionCreate>({ torneo_id: 0, club_equipo_id: 0 });
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
-    try {
-      const [insc, torn, eq, part] = await Promise.all([
-        api.getInscripciones(),
-        api.getTorneos(),
-        api.getEquipos(),
-        api.getPartidos(),
-      ]);
-      setInscripciones(insc);
-      setTorneos(torn);
-      setEquipos(eq);
-      setPartidos(part);
-    } catch {
-      setError("No se pudo cargar las inscripciones.");
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
-  useEffect(() => { cargar(); }, [cargar]);
+  const errorMostrado = error || ((inscQ.isError || torneosQ.isError || equiposQ.isError || partidosQ.isError) ? "No se pudo cargar las inscripciones." : "");
   useEffect(() => {
     if (!form.torneo_id || !form.club_equipo_id) return;
     const torneoSel = torneos.find((t) => t.id === form.torneo_id);
@@ -80,7 +72,7 @@ export default function InscripcionesPage() {
   async function aprobar(id: number) {
     setAccion(id);
     setError("");
-    try { await api.aprobarInscripcion(id); await cargar(); }
+    try { await api.aprobarInscripcion(id); await recargar(); }
     catch (e) { setError(e instanceof Error ? e.message : "No se pudo aprobar la inscripción."); }
     finally { setAccion(null); }
   }
@@ -88,7 +80,7 @@ export default function InscripcionesPage() {
   async function rechazar(id: number) {
     setAccion(id);
     setError("");
-    try { await api.rechazarInscripcion(id); await cargar(); }
+    try { await api.rechazarInscripcion(id); await recargar(); }
     catch (e) { setError(e instanceof Error ? e.message : "No se pudo rechazar la inscripción."); }
     finally { setAccion(null); }
   }
@@ -96,7 +88,7 @@ export default function InscripcionesPage() {
   async function retirar(id: number) {
     setAccion(id);
     setError("");
-    try { await api.retirarInscripcion(id); await cargar(); }
+    try { await api.retirarInscripcion(id); await recargar(); }
     catch (e) { setError(e instanceof Error ? e.message : "Error al retirar"); }
     finally { setAccion(null); }
   }
@@ -104,7 +96,7 @@ export default function InscripcionesPage() {
   async function eliminar(id: number) {
     setAccion(id);
     setError("");
-    try { await api.deleteInscripcion(id); await cargar(); }
+    try { await api.deleteInscripcion(id); await recargar(); }
     catch (e) { setError(e instanceof Error ? e.message : "No se pudo eliminar la inscripción."); }
     finally { setAccion(null); }
   }
@@ -119,7 +111,7 @@ export default function InscripcionesPage() {
       await api.createInscripcion(form);
       setShowModal(false);
       setForm({ torneo_id: 0, club_equipo_id: 0 });
-      await cargar();
+      await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al inscribir");
     }
@@ -195,7 +187,7 @@ export default function InscripcionesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={cargar}
+            onClick={recargar}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
           >
             <RefreshCw className="w-4 h-4" />
@@ -211,10 +203,10 @@ export default function InscripcionesPage() {
         </div>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
+          {errorMostrado}
         </div>
       )}
 

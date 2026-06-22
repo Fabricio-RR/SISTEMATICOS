@@ -1,14 +1,20 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Building2, Plus, Trash2, Search, AlertCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useInstituciones } from "@/lib/hooks";
 import type { Institucion, CategoriaInstitucion } from "@/types/api";
 import { CATEGORIAS, CATEGORIA_PAIS } from "@/types/api";
 
 export default function InstitucionesPage() {
-  const [instituciones, setInstituciones] = useState<Institucion[]>([]);
+  const queryClient = useQueryClient();
+  const institucionesQ = useInstituciones();
+  const instituciones = institucionesQ.data ?? [];
+  const cargando = institucionesQ.isLoading;
+  const recargar = () => queryClient.invalidateQueries({ queryKey: ["instituciones"] });
+
   const [busqueda, setBusqueda] = useState("");
-  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
   const [form, setForm] = useState({
@@ -19,19 +25,7 @@ export default function InstitucionesPage() {
   const [errorForm, setErrorForm] = useState("");
   const [eliminando, setEliminando] = useState<number | null>(null);
 
-  useEffect(() => { cargar(); }, []);
-
-  async function cargar() {
-    setCargando(true);
-    setError("");
-    try {
-      setInstituciones(await api.getInstituciones());
-    } catch {
-      setError("No se pudo cargar las instituciones. Verifica que el backend esté activo.");
-    } finally {
-      setCargando(false);
-    }
-  }
+  const errorMostrado = error || (institucionesQ.isError ? "No se pudo cargar las instituciones. Verifica que el backend esté activo." : "");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +51,7 @@ export default function InstitucionesPage() {
       await api.createInstitucion({ ...form, categoria: form.categoria || undefined });
       setModalAbierto(false);
       setForm({ nombre: "", nombre_corto: "", ciudad: "", estado: "activo", contacto: "", categoria: "" });
-      await cargar();
+      await recargar();
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -70,7 +64,7 @@ export default function InstitucionesPage() {
     setError("");
     try {
       await api.deleteInstitucion(id);
-      await cargar();
+      await recargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo eliminar la institución.");
     } finally {
@@ -106,10 +100,10 @@ export default function InstitucionesPage() {
         </button>
       </div>
 
-      {error && (
+      {errorMostrado && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
+          {errorMostrado}
         </div>
       )}
 
