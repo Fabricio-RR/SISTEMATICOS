@@ -1,5 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
+
+FORMATOS_TORNEO = ["liga", "eliminacion_simple", "grupos"]
 
 ESTADOS_TORNEO = [
     "inscripcion_abierta",
@@ -20,9 +22,21 @@ TRANSICIONES = {
 
 class TorneoCreate(BaseModel):
     deporte_id: int
-    nombre: str
+    nombre: str = Field(min_length=2, max_length=150)
     formato: str = "liga"
-    temporada: str
+    temporada: str = Field(min_length=4, max_length=20)
+
+    @field_validator("nombre", "temporada", mode="before")
+    @classmethod
+    def _trim(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("formato")
+    @classmethod
+    def _formato_valido(cls, v):
+        if v not in FORMATOS_TORNEO:
+            raise ValueError(f"Formato inválido. Opciones: {', '.join(FORMATOS_TORNEO)}")
+        return v
 
 
 class TorneoOut(TorneoCreate):

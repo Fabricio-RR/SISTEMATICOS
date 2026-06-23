@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.texto import normalizar
 from app.models.atleta_jugador import AtletaJugador
 from app.models.club_equipo import ClubEquipo
 from app.models.deportes import Deporte
@@ -53,14 +54,17 @@ def assert_team_name_available(
     nombre_equipo: str,
     exclude_team_id: int | None = None,
 ) -> None:
+    # Comparamos por nombre normalizado para que "Los Tigres", "los tigres" y
+    # "LOS  TIGRES" cuenten como el mismo equipo dentro de la institución y el
+    # deporte. La restricción UNIQUE de la BD sigue cubriendo el caso exacto.
+    objetivo = normalizar(nombre_equipo)
     q = db.query(ClubEquipo).filter(
         ClubEquipo.institucion_id == institucion_id,
         ClubEquipo.deporte_id == deporte_id,
-        ClubEquipo.nombre_equipo == nombre_equipo,
     )
     if exclude_team_id is not None:
         q = q.filter(ClubEquipo.id != exclude_team_id)
-    if q.first():
+    if any(normalizar(e.nombre_equipo) == objetivo for e in q.all()):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ya existe un equipo con ese nombre en la institución y deporte seleccionados",

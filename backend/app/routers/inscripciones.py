@@ -44,7 +44,12 @@ def _enrich(insc: Inscripcion) -> InscripcionOut:
 
 
 @router.get("/", response_model=list[InscripcionOut])
-def get_all(torneo_id: int | None = None, db: Session = Depends(get_db)):
+def get_all(
+    torneo_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_user),
+):
+    # Requiere sesión: las inscripciones son datos de gestión (no del portal público).
     q = db.query(Inscripcion).options(
         joinedload(Inscripcion.club_equipo),
         joinedload(Inscripcion.torneo),

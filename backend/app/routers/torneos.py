@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -7,6 +8,7 @@ from app.models.deportes import Deporte
 from app.models.inscripciones import Inscripcion
 from app.models.fixture import Fixture
 from app.core.deps import require_admin
+from app.core.texto import normalizar
 from app.models.usuarios import Usuario
 from app.schemas.torneos import TorneoCreate, TorneoOut, TRANSICIONES
 from app.services.competition import assert_transition_allowed
@@ -31,9 +33,31 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 def create(data: TorneoCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     if not db.query(Deporte).filter(Deporte.id == data.deporte_id, Deporte.esta_activo == True).first():
         raise HTTPException(status_code=404, detail="Deporte no encontrado o inactivo")
+
+    # Evitar torneos duplicados aunque el nombre esté escrito distinto
+    # (mismo deporte y temporada). La restricción UNIQUE cubre el caso exacto.
+    objetivo = normalizar(data.nombre)
+    temporada_norm = normalizar(data.temporada)
+    existentes = db.query(Torneo).filter(Torneo.deporte_id == data.deporte_id).all()
+    if any(
+        normalizar(t.nombre) == objetivo and normalizar(t.temporada) == temporada_norm
+        for t in existentes
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
+        )
+
     torneo = Torneo(**data.model_dump())
     db.add(torneo)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
+        )
     db.refresh(torneo)
     return torneo
 

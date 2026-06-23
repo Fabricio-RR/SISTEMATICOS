@@ -7,11 +7,22 @@ from app.models.torneos import Torneo
 from app.models.club_equipo import ClubEquipo
 from app.schemas.deportes import DeporteCreate, DeporteUpdate, DeporteOut
 from app.core.deps import require_admin
+from app.core.texto import normalizar
 from app.models.usuarios import Usuario
 
 router = APIRouter()
 
 ESTADO_ELIMINADO = 2
+
+
+def _nombre_duplicado(db: Session, nombre: str, *, excluir_id: int | None = None) -> bool:
+    # Compara por nombre normalizado ("Fútbol" == "futbol" == "FUTBOL"), ignorando
+    # los deportes eliminados para permitir reutilizar el nombre de uno borrado.
+    objetivo = normalizar(nombre)
+    q = db.query(Deporte).filter(Deporte.estado != ESTADO_ELIMINADO)
+    if excluir_id is not None:
+        q = q.filter(Deporte.id != excluir_id)
+    return any(normalizar(d.nombre) == objetivo for d in q.all())
 
 
 @router.get("/", response_model=list[DeporteOut])
@@ -33,8 +44,7 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=DeporteOut, status_code=status.HTTP_201_CREATED)
 def create(data: DeporteCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    existe = db.query(Deporte).filter(Deporte.nombre == data.nombre).first()
-    if existe:
+    if _nombre_duplicado(db, data.nombre):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ya existe un deporte con este nombre",
@@ -55,11 +65,8 @@ def update(id: int, data: DeporteUpdate, db: Session = Depends(get_db), _: Usuar
     payload = data.model_dump(exclude_none=True)
 
     nuevo_nombre = payload.get("nombre")
-    if nuevo_nombre and nuevo_nombre != dep.nombre:
-        existe = db.query(Deporte).filter(
-            Deporte.nombre == nuevo_nombre, Deporte.id != id
-        ).first()
-        if existe:
+    if nuevo_nombre and normalizar(nuevo_nombre) != normalizar(dep.nombre):
+        if _nombre_duplicado(db, nuevo_nombre, excluir_id=id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ya existe un deporte con este nombre",

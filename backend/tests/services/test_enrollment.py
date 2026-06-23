@@ -84,6 +84,26 @@ def test_assert_team_creation_allowed_rejects_duplicate_name(db_session):
         )
 
 
+def test_assert_team_creation_allowed_detecta_variantes_de_mayusculas(db_session):
+    # "los  TIGRES" debe contar como el mismo equipo que "Los Tigres".
+    institucion = make_institucion()
+    deporte = make_deporte()
+    db_session.add_all([institucion, deporte])
+    db_session.commit()
+
+    db_session.add(make_equipo(institucion.id, deporte.id, "Los Tigres"))
+    db_session.commit()
+
+    with pytest.raises(HTTPException, match="Ya existe un equipo con ese nombre"):
+        assert_team_creation_allowed(
+            institucion_id=institucion.id,
+            deporte_id=deporte.id,
+            nombre_equipo="los  TIGRES",
+            current_user=make_user("admin"),
+            db=db_session,
+        )
+
+
 def test_assert_atleta_creation_allowed_requires_approved_team(db_session):
     institucion = make_institucion()
     deporte = make_deporte()

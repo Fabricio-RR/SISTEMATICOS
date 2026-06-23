@@ -41,18 +41,18 @@ export default function InstitucionResultadosPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Portal institucional</p>
-        <h1 className="text-2xl font-bold text-gray-900 mt-1">Estadísticas</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Tabla de posiciones y goleadores por torneo.</p>
+        <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Portal institucional</p>
+        <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Estadísticas</h1>
+        <p className="text-sm text-slate-400 mt-0.5">Tabla de posiciones y goleadores por torneo.</p>
       </div>
 
       {/* Selector */}
       <div className="relative w-fit">
-        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <select
           value={torneoId ?? ""}
           onChange={(e) => handleTorneo(Number(e.target.value))}
-          className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
         >
           <option value="">Seleccionar torneo</option>
           {torneos.map((t) => (
@@ -69,55 +69,55 @@ export default function InstitucionResultadosPage() {
       )}
 
       {!torneoId ? (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-300">
+        <div className="flex flex-col items-center justify-center h-48 text-slate-300">
           <BarChart3 className="w-10 h-10 mb-3" strokeWidth={1.5} />
-          <p className="text-sm text-gray-400">Selecciona un torneo para ver las estadísticas</p>
+          <p className="text-sm text-slate-400">Selecciona un torneo para ver las estadísticas</p>
         </div>
       ) : cargando ? (
-        <div className="flex items-center justify-center h-48 text-sm text-gray-400">Cargando...</div>
+        <div className="flex items-center justify-center h-48 text-sm text-slate-400">Cargando...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Tabla de posiciones */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-900">Tabla de posiciones</h2>
-                <span className="text-xs text-gray-400">{tabla.length} equipos</span>
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">Tabla de posiciones</h2>
+                <span className="text-xs text-slate-400">{tabla.length} equipos</span>
               </div>
               {tabla.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-sm text-gray-400">
+                <div className="flex items-center justify-center h-32 text-sm text-slate-400">
                   Sin equipos aprobados en este torneo
                 </div>
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-100">
+                    <tr className="border-b border-slate-100">
                       {["Pos", "Equipo", "PJ", "G", "E", "P", "GF", "GC", "DIF", "PTS"].map((h) => (
                         <th
                           key={h}
-                          className={`py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider ${h === "Equipo" ? "text-left px-4" : "text-center px-3"}`}
+                          className={`py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider ${h === "Equipo" ? "text-left px-4" : "text-center px-3"}`}
                         >
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-slate-50">
                     {tabla.map((fila) => (
-                      <tr key={fila.equipo_id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={fila.equipo_id} className="hover:bg-slate-50 transition-colors">
                         <td className="text-center px-3 py-3">
                           {fila.posicion === 1
                             ? <Trophy className="w-4 h-4 text-yellow-500 mx-auto" />
-                            : <span className="text-sm font-semibold text-gray-400">{fila.posicion}</span>}
+                            : <span className="text-sm font-semibold text-slate-400">{fila.posicion}</span>}
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">{fila.nombre_equipo}</td>
-                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_jugados}</td>
-                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_ganados}</td>
-                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_empatados}</td>
-                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.partidos_perdidos}</td>
-                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.goles_a_favor}</td>
-                        <td className="text-center px-3 py-3 text-sm text-gray-600">{fila.goles_en_contra}</td>
-                        <td className="text-center px-3 py-3 text-sm font-semibold text-gray-700">
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-900">{fila.nombre_equipo}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_jugados}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_ganados}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_empatados}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_perdidos}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.goles_a_favor}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.goles_en_contra}</td>
+                        <td className="text-center px-3 py-3 text-sm font-semibold text-slate-700">
                           {fila.diferencia_goles > 0 ? `+${fila.diferencia_goles}` : fila.diferencia_goles}
                         </td>
                         <td className="text-center px-3 py-3">
@@ -133,30 +133,30 @@ export default function InstitucionResultadosPage() {
 
           {/* Líderes individuales */}
           <div>
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-50">
-                <h2 className="text-sm font-semibold text-gray-900">
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-50">
+                <h2 className="text-sm font-semibold text-slate-900">
                   {goleadores[0]?.etiqueta === "Puntos" ? "Anotadores" : "Goleadores"}
                 </h2>
               </div>
               {goleadores.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-sm text-gray-400 px-4 text-center">
+                <div className="flex items-center justify-center h-32 text-sm text-slate-400 px-4 text-center">
                   Sin estadísticas individuales aún
                 </div>
               ) : (
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-slate-50">
                   {goleadores.map((g) => (
                     <div key={g.atleta_id} className="px-5 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-sm font-semibold text-gray-300 w-5 shrink-0 text-right">{g.posicion}</span>
+                        <span className="text-sm font-semibold text-slate-300 w-5 shrink-0 text-right">{g.posicion}</span>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{g.nombre_completo}</p>
-                          <p className="text-xs text-gray-400 truncate">{g.nombre_equipo}</p>
+                          <p className="text-sm font-semibold text-slate-900 truncate">{g.nombre_completo}</p>
+                          <p className="text-xs text-slate-400 truncate">{g.nombre_equipo}</p>
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-2">
                         <p className="text-sm font-bold text-red-600">{g.goles}</p>
-                        <p className="text-[10px] text-gray-400">{g.etiqueta.toLowerCase()}</p>
+                        <p className="text-[10px] text-slate-400">{g.etiqueta.toLowerCase()}</p>
                       </div>
                     </div>
                   ))}

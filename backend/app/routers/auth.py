@@ -23,6 +23,13 @@ from app.core.security import (
 from app.core.deps import get_current_user, require_admin
 from app.core.limiter import limiter
 from app.core.categorias import pais_por_categoria
+from app.services.instituciones import (
+    candidatos_duplicados,
+    clave_canonica,
+    hay_duplicado_exacto,
+    normalizar,
+    sigla,
+)
 
 router = APIRouter()
 
@@ -183,18 +190,37 @@ def solicitar_acceso(data: SolicitudAccesoRequest, db: Session = Depends(get_db)
     if db.query(Usuario).filter(Usuario.correo == data.correo).first():
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
-    # Generar nombre_corto único de hasta 6 caracteres
-    base = data.nombre_institucion[:6].upper()
-    nombre_corto = base
+    # Evitar instituciones duplicadas: si ya existe una equivalente (aunque esté
+    # escrita distinto), el público no puede crearla de nuevo; debe pedir acceso
+    # al administrador. Solo bloqueamos coincidencias exactas tras normalizar.
+    exacto = hay_duplicado_exacto(
+        candidatos_duplicados(db, data.nombre_institucion)
+    )
+    if exacto:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Ya existe una institución registrada con ese nombre: «{exacto.institucion.nombre}». "
+                f"Si es la tuya, pide acceso al administrador."
+            ),
+        )
+
+    # Generar nombre_corto: preferimos la sigla del nombre (UTP) y caemos al
+    # truncado si la sigla no sirve o ya está tomada.
+    candidato = sigla(data.nombre_institucion)
+    if not (2 <= len(candidato) <= 6):
+        candidato = normalizar(data.nombre_institucion)[:6] or "INST"
+    nombre_corto = candidato
     suffix = 1
     while db.query(Institucion).filter(Institucion.nombre_corto == nombre_corto).first():
-        nombre_corto = f"{base[:5]}{suffix}"
+        nombre_corto = f"{candidato[:5]}{suffix}"
         suffix += 1
 
     # Crear la institución
     institucion = Institucion(
         nombre=data.nombre_institucion,
         nombre_corto=nombre_corto,
+        nombre_normalizado=clave_canonica(data.nombre_institucion),
         ciudad=data.ciudad,
         estado="pendiente",
         contacto=data.contacto,

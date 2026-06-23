@@ -36,9 +36,9 @@ export default function InstitucionPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Portal institucional</p>
-        <h1 className="text-2xl font-bold text-gray-900 mt-1">Bienvenido, {primerNombre}</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Olimpiadas PERÚ 2026</p>
+        <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Portal institucional</p>
+        <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Bienvenido, {primerNombre}</h1>
+        <p className="text-sm text-slate-400 mt-0.5">Olimpiadas PERÚ 2026</p>
       </div>
 
       {/* Banner */}
@@ -61,21 +61,21 @@ export default function InstitucionPage() {
           { label: "Deportes disponibles", value: deportes.length, icon: Trophy },
           { label: "Próximos encuentros", value: proximos, icon: CalendarDays },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mb-3">
-              <Icon className="w-4 h-4 text-gray-500" />
+          <div key={label} className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm">
+            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center mb-3">
+              <Icon className="w-4 h-4 text-slate-500" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+            <p className="text-2xl font-bold text-slate-900">{value}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
       {/* Deportes disponibles */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Deportes del torneo</h2>
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <h2 className="text-sm font-semibold text-slate-900 mb-4">Deportes del torneo</h2>
         {deportes.length === 0 ? (
-          <p className="text-sm text-gray-400">Sin datos disponibles.</p>
+          <p className="text-sm text-slate-400">Sin datos disponibles.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {deportes.map((d) => (
@@ -91,15 +91,15 @@ export default function InstitucionPage() {
       </div>
 
       {/* Actividad reciente */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">Actividad reciente</h2>
-          <span className="text-xs text-gray-400">Hoy</span>
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+        <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-900">Actividad reciente</h2>
+          <span className="text-xs text-slate-400">Hoy</span>
         </div>
         <div className="flex flex-col items-center justify-center py-12">
-          <Clock className="w-8 h-8 text-gray-200 mb-3" strokeWidth={1.5} />
-          <p className="text-sm font-medium text-gray-400">Sin actividad reciente</p>
-          <p className="text-xs text-gray-300 mt-1">El historial estará disponible próximamente</p>
+          <Clock className="w-8 h-8 text-slate-200 mb-3" strokeWidth={1.5} />
+          <p className="text-sm font-medium text-slate-400">Sin actividad reciente</p>
+          <p className="text-xs text-slate-300 mt-1">El historial estará disponible próximamente</p>
         </div>
       </div>
     </div>

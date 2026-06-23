@@ -22,7 +22,7 @@ const BADGE: Record<EstadoInscripcion, string> = {
   pendiente: "bg-amber-50 text-amber-700",
   aprobado: "bg-green-50 text-green-700",
   rechazado: "bg-red-50 text-red-600",
-  retirado: "bg-gray-100 text-gray-500",
+  retirado: "bg-slate-100 text-slate-500",
 };
 
 export default function InscripcionesPage() {
@@ -181,14 +181,14 @@ export default function InscripcionesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Inscripciones</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Gestión de equipos inscritos por torneo.</p>
+          <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Administración</p>
+          <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Inscripciones</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Gestión de equipos inscritos por torneo.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={recargar}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
           >
             <RefreshCw className="w-4 h-4" />
             Actualizar
@@ -219,11 +219,11 @@ export default function InscripcionesPage() {
             className={`p-4 rounded-xl border text-left transition-all ${
               tab === estado
                 ? "border-red-200 bg-red-50"
-                : "border-gray-100 bg-white hover:border-gray-200"
+                : "border-slate-100 bg-white hover:border-slate-200"
             }`}
           >
-            <p className="text-2xl font-bold text-gray-900">{counts[estado]}</p>
-            <p className="text-sm text-gray-500 mt-1">{LABEL[estado]}</p>
+            <p className="text-2xl font-bold text-slate-900">{counts[estado]}</p>
+            <p className="text-sm text-slate-500 mt-1">{LABEL[estado]}</p>
           </button>
         ))}
       </div>
@@ -231,20 +231,20 @@ export default function InscripcionesPage() {
       {/* Filtros */}
       <div className="flex gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar equipo o torneo..."
-            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
           />
         </div>
         <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <select
             value={torneoFiltro ?? ""}
             onChange={(e) => setTorneoFiltro(e.target.value ? Number(e.target.value) : undefined)}
-            className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
           >
             <option value="">Todos los torneos</option>
             {torneos.filter((t) => t.estado !== "suspendido").map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
@@ -253,35 +253,35 @@ export default function InscripcionesPage() {
       </div>
 
       {/* Tabla */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
         {cargando ? (
-          <div className="flex items-center justify-center h-40 text-sm text-gray-400">Cargando...</div>
+          <div className="flex items-center justify-center h-40 text-sm text-slate-400">Cargando...</div>
         ) : lista.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-gray-300">
+          <div className="flex flex-col items-center justify-center h-40 text-slate-300">
             <ClipboardList className="w-8 h-8 mb-2" strokeWidth={1.5} />
-            <p className="text-sm text-gray-400">Sin inscripciones {LABEL[tab].toLowerCase()}s</p>
+            <p className="text-sm text-slate-400">Sin inscripciones {LABEL[tab].toLowerCase()}s</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Equipo</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Torneo</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Seeding</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Estado</th>
-                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
+              <tr className="border-b border-slate-100">
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Equipo</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Torneo</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Seeding</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Estado</th>
+                <th className="text-right px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-slate-50">
               {lista.map((insc) => (
-                <tr key={insc.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                <tr key={insc.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-semibold text-slate-900">
                     {insc.club_equipo?.nombre_equipo ?? `Equipo #${insc.club_equipo_id}`}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-slate-600">
                     {insc.torneo?.nombre ?? `Torneo #${insc.torneo_id}`}
                   </td>
-                  <td className="px-4 py-4 text-center text-sm text-gray-500">{insc.numero_seeding ?? "—"}</td>
+                  <td className="px-4 py-4 text-center text-sm text-slate-500">{insc.numero_seeding ?? "—"}</td>
                   <td className="px-4 py-4 text-center">
                     <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${BADGE[insc.estado]}`}>
                       {LABEL[insc.estado]}
@@ -322,7 +322,7 @@ export default function InscripcionesPage() {
                       <button
                         onClick={() => eliminar(insc.id)}
                         disabled={accion === insc.id}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -340,7 +340,7 @@ export default function InscripcionesPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-5">Nueva inscripción</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-5">Nueva inscripción</h2>
               {torneosAbiertos.length === 0 && (
                 <div className="mb-4 flex gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -349,11 +349,11 @@ export default function InscripcionesPage() {
               )}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Torneo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Torneo</label>
                   <select
                     value={form.torneo_id || ""}
                     onChange={(e) => setForm((f) => ({ ...f, torneo_id: Number(e.target.value), club_equipo_id: 0 }))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                   <option value="">Seleccionar torneo</option>
                   {torneosAbiertos.length === 0 && (
@@ -363,11 +363,11 @@ export default function InscripcionesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Equipo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Equipo</label>
                   <select
                     value={form.club_equipo_id || ""}
                     onChange={(e) => setForm((f) => ({ ...f, club_equipo_id: Number(e.target.value) }))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="">Seleccionar equipo</option>
                     {equiposDisponibles.length === 0 && (
@@ -379,20 +379,20 @@ export default function InscripcionesPage() {
                   </select>
                 </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Seeding (opcional)</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Seeding (opcional)</label>
                 <input
                   type="number"
                   min={1}
                   value={form.numero_seeding ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, numero_seeding: e.target.value ? Number(e.target.value) : undefined }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
               >
                 Cancelar
               </button>

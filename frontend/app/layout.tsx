@@ -1,6 +1,23 @@
 import type { Metadata } from "next";
+import { Inter, Sora } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+
+// Fuentes optimizadas y autoalojadas por Next. Se exponen como variables CSS
+// (--font-sans / --font-display) que consumen Tailwind y globals.css.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Olimpiadas Perú",
@@ -9,16 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <head>
-        {/* Fuentes: Inter para el texto y Sora para los titulares (clase .font-display). */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="es" className={`${inter.variable} ${sora.variable}`}>
       <body className="antialiased">
         <Providers>{children}</Providers>
       </body>

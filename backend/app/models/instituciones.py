@@ -16,6 +16,9 @@ class Institucion(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     nombre: Mapped[str] = mapped_column(String(200))
     nombre_corto: Mapped[str] = mapped_column(String(50))
+    # Clave canónica del nombre (sin tildes, mayúsculas, sin palabras genéricas).
+    # Permite detectar duplicados escritos distinto. Indexada para el match exacto.
+    nombre_normalizado: Mapped[str] = mapped_column(String(200), default="", index=True)
     ciudad: Mapped[str] = mapped_column(String(100))
     estado: Mapped[str] = mapped_column(String(30), default="activo")
     imagen_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

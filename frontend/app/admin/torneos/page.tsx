@@ -12,7 +12,7 @@ import {
   ESTADO_TORNEO_SIGUIENTE,
 } from "@/types/api";
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
+const inputCls = "w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
 
 const FORMATO_LABEL: Record<FormatoTorneo, string> = {
   liga: "Liga",
@@ -91,18 +91,21 @@ export default function TorneosPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!form.deporte_id) { setErrorForm("Selecciona un deporte."); return; }
-    if (form.nombre.length > 150) {
+    const nombre = form.nombre.trim();
+    const temporada = form.temporada.trim();
+    if (nombre.length < 2) { setErrorForm("El nombre del torneo debe tener al menos 2 caracteres."); return; }
+    if (nombre.length > 150) {
       setErrorForm("El nombre del torneo no puede tener más de 150 caracteres.");
       return;
     }
-    if (form.temporada.length > 20) {
-      setErrorForm("La temporada no puede tener más de 20 caracteres.");
+    if (temporada.length < 4 || temporada.length > 20) {
+      setErrorForm("La temporada debe tener entre 4 y 20 caracteres (ej. 2026).");
       return;
     }
     setGuardando(true);
     setErrorForm("");
     try {
-      await api.createTorneo(form);
+      await api.createTorneo({ ...form, nombre, temporada });
       setModal(false);
       setForm({ nombre: "", deporte_id: 0, formato: "liga", temporada: new Date().getFullYear().toString() });
       await recargar();
@@ -182,9 +185,9 @@ export default function TorneosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Torneos</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Gestión de competencias y temporadas.</p>
+          <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Administración</p>
+          <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Torneos</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Gestión de competencias y temporadas.</p>
         </div>
         <button
           onClick={() => setModal(true)}
@@ -202,60 +205,60 @@ export default function TorneosPage() {
       )}
 
       {/* Leyenda de flujo */}
-      <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
         {(["inscripcion_abierta", "inscripcion_cerrada", "en_sorteo", "en_curso", "finalizado"] as EstadoTorneo[]).map((e, i, arr) => (
           <span key={e} className="flex items-center gap-1.5">
             <span className={`px-2 py-0.5 rounded-full font-semibold ${ESTADO_TORNEO_BADGE[e]}`}>
               {ESTADO_TORNEO_LABEL[e]}
             </span>
-            {i < arr.length - 1 && <ChevronRight className="w-3 h-3 text-gray-300" />}
+            {i < arr.length - 1 && <ChevronRight className="w-3 h-3 text-slate-300" />}
           </span>
         ))}
       </div>
 
       <div className="relative w-80">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           type="text"
           placeholder="Buscar torneo o temporada..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+          className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">#</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Torneo</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Deporte</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Formato</th>
-              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Temporada</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Fases de Progreso</th>
-              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones de Flujo</th>
+            <tr className="border-b border-slate-100">
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Torneo</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Deporte</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Formato</th>
+              <th className="text-center px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Temporada</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Fases de Progreso</th>
+              <th className="text-center px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Acciones de Flujo</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-slate-50">
             {cargando ? (
-              <tr><td colSpan={7} className="text-center py-14 text-sm text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={7} className="text-center py-14 text-sm text-slate-400">Cargando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-14 text-sm text-gray-400">
+              <tr><td colSpan={7} className="text-center py-14 text-sm text-slate-400">
                 {busqueda ? "Sin resultados" : "No hay torneos registrados"}
               </td></tr>
             ) : filtrados.map((t) => {
               const siguiente = ESTADO_TORNEO_SIGUIENTE[t.estado];
               return (
-                <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-400 font-mono">{String(t.id).padStart(2, "0")}</td>
+                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">{String(t.id).padStart(2, "0")}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
                         <Medal className="w-4 h-4 text-red-600" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">{t.nombre}</p>
+                        <p className="text-sm font-semibold text-slate-900">{t.nombre}</p>
                         {t.estado === "suspendido" && (
                           <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 mt-0.5">
                             SUSPENDIDO
@@ -264,9 +267,9 @@ export default function TorneosPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{depMap.get(t.deporte_id) ?? `#${t.deporte_id}`}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{FORMATO_LABEL[t.formato]}</td>
-                  <td className="px-6 py-4 text-center text-sm font-semibold text-gray-700">{t.temporada}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{depMap.get(t.deporte_id) ?? `#${t.deporte_id}`}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{FORMATO_LABEL[t.formato]}</td>
+                  <td className="px-6 py-4 text-center text-sm font-semibold text-slate-700">{t.temporada}</td>
                   
                   {/* Stepper horizontal del progreso del torneo */}
                   <td className="px-6 py-4">
@@ -288,14 +291,14 @@ export default function TorneosPage() {
                                     ? "bg-red-600 text-white shadow-sm ring-2 ring-red-100"
                                     : isPast
                                     ? "bg-green-50 text-green-700 border border-green-200"
-                                    : "bg-gray-50 text-gray-400 border border-gray-100"
+                                    : "bg-slate-50 text-slate-400 border border-slate-100"
                                 }`}
                                 title={ESTADO_TORNEO_LABEL[f.key]}
                               >
                                 {f.label}
                               </span>
                               {idx < FASES_TORNEO.length - 1 && (
-                                <span className={`h-0.5 w-3 mx-0.5 ${isPast ? "bg-green-300" : "bg-gray-100"}`} />
+                                <span className={`h-0.5 w-3 mx-0.5 ${isPast ? "bg-green-300" : "bg-slate-100"}`} />
                               )}
                             </div>
                           );
@@ -356,7 +359,7 @@ export default function TorneosPage() {
                             onClick={() => handleSuspender(t.id)}
                             disabled={accionando === t.id}
                             title="Suspender torneo"
-                            className="p-1.5 rounded-lg border border-gray-100 bg-gray-50 text-gray-400 hover:text-amber-500 hover:border-amber-200 transition-colors shadow-sm"
+                            className="p-1.5 rounded-lg border border-slate-100 bg-slate-50 text-slate-400 hover:text-amber-500 hover:border-amber-200 transition-colors shadow-sm"
                           >
                             <PauseCircle className="w-4 h-4" />
                           </button>
@@ -365,7 +368,7 @@ export default function TorneosPage() {
                           <button
                             onClick={() => handleDelete(t.id)}
                             title="Eliminar torneo"
-                            className="p-1.5 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm"
+                            className="p-1.5 rounded-lg border border-slate-100 bg-slate-50 text-slate-300 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -380,17 +383,17 @@ export default function TorneosPage() {
                         </p>
                       )}
                       {t.estado === "inscripcion_abierta" && (
-                        <p className="text-[10px] text-gray-400 font-medium">
+                        <p className="text-[10px] text-slate-400 font-medium">
                           Los equipos se inscriben libremente
                         </p>
                       )}
                       {t.estado === "inscripcion_cerrada" && (
-                        <p className="text-[10px] text-gray-400 font-medium">
+                        <p className="text-[10px] text-slate-400 font-medium">
                           Inscripción cerrada. Habilita sorteo para armar partidos
                         </p>
                       )}
                       {t.estado === "en_curso" && (
-                        <p className="text-[10px] text-gray-400 font-medium">
+                        <p className="text-[10px] text-slate-400 font-medium">
                           Torneo activo, actualiza resultados en panel
                         </p>
                       )}
@@ -411,13 +414,13 @@ export default function TorneosPage() {
                 <Medal className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Nuevo torneo</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Inicia en estado Inscripción abierta</p>
+                <h2 className="text-lg font-bold text-slate-900">Nuevo torneo</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Inicia en estado Inscripción abierta</p>
               </div>
             </div>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre</label>
                 <input
                   value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
@@ -427,7 +430,7 @@ export default function TorneosPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Deporte</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Deporte</label>
                 <select
                   value={form.deporte_id || ""}
                   onChange={(e) => setForm({ ...form, deporte_id: Number(e.target.value) })}
@@ -438,7 +441,7 @@ export default function TorneosPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Formato</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Formato</label>
                 <select
                   value={form.formato}
                   onChange={(e) => setForm({ ...form, formato: e.target.value as FormatoTorneo })}
@@ -450,7 +453,7 @@ export default function TorneosPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Temporada</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Temporada</label>
                 <input
                   value={form.temporada}
                   onChange={(e) => setForm({ ...form, temporada: e.target.value })}
@@ -462,7 +465,7 @@ export default function TorneosPage() {
               {errorForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorForm}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setModal(false); setErrorForm(""); }}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardando}

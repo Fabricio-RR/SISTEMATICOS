@@ -124,6 +124,13 @@ def update(
         and p.fecha_hora != data.fecha_hora
     )
 
+    # Reprogramar (mover la fecha) un partido ya jugado no tiene sentido.
+    if es_reprogramacion and p.estado == "finalizado":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede reprogramar un partido finalizado",
+        )
+
     payload = data.model_dump(exclude_none=True)
     payload.pop("motivo_reprogramacion", None)
     for field, val in payload.items():

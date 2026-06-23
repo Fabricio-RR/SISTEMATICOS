@@ -68,7 +68,7 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
 
   if (!listo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -105,17 +105,17 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
   const pageLabel = breadcrumbLabels[pathname] ?? "Portal";
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shrink-0">
-        <div className="h-14 flex items-center px-4 border-b border-gray-100">
+      <aside className="w-56 bg-white border-r border-slate-100 flex flex-col shrink-0">
+        <div className="h-14 flex items-center px-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-red-600 flex items-center justify-center shrink-0">
               <Trophy className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
               <p className="text-[9px] font-black tracking-widest text-red-600 leading-none">OLIMPIADAS</p>
-              <p className="text-[11px] font-black tracking-widest text-gray-900 leading-none mt-0.5">PERÚ</p>
+              <p className="text-[11px] font-black tracking-widest text-slate-900 leading-none mt-0.5">PERÚ</p>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                   active
                     ? "bg-red-600 text-white font-semibold"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900 font-medium"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium"
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -140,12 +140,12 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
           })}
         </nav>
 
-        <div className="border-t border-gray-100 p-3">
+        <div className="border-t border-slate-100 p-3">
           <a
             href="/"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
           >
             <ExternalLink className="w-4 h-4 shrink-0" />
             Visitar página principal
@@ -154,9 +154,9 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-14 bg-white border-b border-gray-100 px-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <span className="font-medium text-gray-700">Portal Institucional</span>
+        <header className="h-14 bg-white border-b border-slate-100 px-8 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <span className="font-medium text-slate-700">Portal Institucional</span>
             <ChevronRight className="w-3.5 h-3.5" />
             <span>{pageLabel}</span>
           </div>
@@ -166,7 +166,7 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
             <div ref={notifRef} className="relative">
               <button
                 onClick={() => { setNotifOpen((v) => !v); if (!notifOpen) cargarNotifs(); }}
-                className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"
               >
                 <Bell className="w-4 h-4" />
                 {noLeidas > 0 && (
@@ -177,9 +177,9 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-gray-100 shadow-xl z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-900">Notificaciones</p>
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-slate-100 shadow-xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-50 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-900">Notificaciones</p>
                     {noLeidas > 0 && (
                       <button onClick={marcarTodas} className="text-xs text-red-600 hover:text-red-700 font-semibold transition">
                         Marcar todas como leídas
@@ -188,9 +188,9 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
                   </div>
 
                   {notificaciones.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-gray-400">Sin notificaciones</div>
+                    <div className="px-4 py-8 text-center text-sm text-slate-400">Sin notificaciones</div>
                   ) : (
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
                       {notificaciones.map((n) => (
                         <div
                           key={n.id}
@@ -200,9 +200,9 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
                             <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-semibold ${n.leida ? "text-gray-600" : "text-gray-900"}`}>{n.titulo}</p>
-                            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.contenido}</p>
-                            <p className="text-[10px] text-gray-400 mt-1">
+                            <p className={`text-sm font-semibold ${n.leida ? "text-slate-600" : "text-slate-900"}`}>{n.titulo}</p>
+                            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.contenido}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">
                               {new Date(n.creada_en).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" })}
                             </p>
                           </div>
@@ -210,7 +210,7 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
                             {!n.leida && (
                               <button onClick={() => marcarLeida(n.id)} className="w-2 h-2 rounded-full bg-red-600 mt-1" title="Marcar como leída" />
                             )}
-                            <button onClick={() => eliminarNotif(n.id)} className="text-gray-300 hover:text-red-500 transition-colors mt-auto">
+                            <button onClick={() => eliminarNotif(n.id)} className="text-slate-300 hover:text-red-500 transition-colors mt-auto">
                               <X className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -228,8 +228,8 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
                 className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
               >
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900 leading-none">{nombre}</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5 leading-none">Institución</p>
+                  <p className="text-sm font-semibold text-slate-900 leading-none">{nombre}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-none">Institución</p>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {inicial}
@@ -237,10 +237,10 @@ export default function InstitucionLayout({ children }: { children: React.ReactN
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl border border-gray-100 shadow-lg py-1 z-50">
+                <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl border border-slate-100 shadow-lg py-1 z-50">
                   <button
                     onClick={() => { setDropdownOpen(false); logout(); }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                     Cerrar sesión

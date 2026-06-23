@@ -17,6 +17,12 @@ os.environ["EMAIL_ENABLED"] = "false"
 import app.models  # noqa: E402,F401
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.core.limiter import limiter  # noqa: E402
+
+# El límite de peticiones es estado global en memoria que se acumula entre tests
+# (no lo resetea reset_db). En pruebas hacemos muchos logins seguidos, así que lo
+# desactivamos para no chocar con el tope por minuto.
+limiter.enabled = False
 
 engine = create_engine(
     "sqlite+pysqlite:///:memory:",

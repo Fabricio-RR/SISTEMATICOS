@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ClubMin(BaseModel):
@@ -16,7 +16,8 @@ class TorneoMin(BaseModel):
 class InscripcionCreate(BaseModel):
     torneo_id: int
     club_equipo_id: int
-    numero_seeding: int | None = None
+    # El sembrado (orden de cabeza de serie), si se indica, debe ser positivo.
+    numero_seeding: int | None = Field(default=None, ge=1)
 
 
 class InscripcionOut(BaseModel):

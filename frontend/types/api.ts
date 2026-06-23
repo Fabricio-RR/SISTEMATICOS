@@ -104,6 +104,17 @@ export interface InstitucionCreate {
   pais_representativo?: string;
 }
 
+// Institución ya registrada que podría ser un duplicado de la que se intenta crear.
+export interface InstitucionSimilar {
+  id: number;
+  nombre: string;
+  nombre_corto: string;
+  ciudad: string;
+  estado: string;
+  motivo: "exacto" | "sigla" | "parecido";
+  exacto: boolean;
+}
+
 // ── Deportes ──────────────────────────────────────────────────────────────────
 
 export type TipoCompetidor = "equipo" | "individual";

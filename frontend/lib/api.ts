@@ -7,6 +7,7 @@ import type {
   Usuario,
   Institucion,
   InstitucionCreate,
+  InstitucionSimilar,
   Deporte,
   DeporteCreate,
   DeporteUpdate,
@@ -215,8 +216,17 @@ export const api = {
   // ── Instituciones ───────────────────────────────────────────────────────────
 
   getInstituciones: () => request<Institucion[]>("/api/instituciones/"),
-  createInstitucion: (data: InstitucionCreate) =>
-    request<Institucion>("/api/instituciones/", { method: "POST", body: JSON.stringify(data) }),
+  // Instituciones existentes que podrían ser duplicadas del nombre dado.
+  getInstitucionesSimilares: (nombre: string, nombreCorto?: string, excluirId?: number) => {
+    const params = new URLSearchParams({ nombre });
+    if (nombreCorto) params.set("nombre_corto", nombreCorto);
+    if (excluirId != null) params.set("excluir_id", String(excluirId));
+    return request<InstitucionSimilar[]>(`/api/instituciones/similares?${params.toString()}`);
+  },
+  createInstitucion: (data: InstitucionCreate, opts: { permitirDuplicado?: boolean } = {}) => {
+    const qs = opts.permitirDuplicado ? "?permitir_duplicado=true" : "";
+    return request<Institucion>(`/api/instituciones/${qs}`, { method: "POST", body: JSON.stringify(data) });
+  },
   deleteInstitucion: (id: number) => request<void>(`/api/instituciones/${id}`, { method: "DELETE" }),
 
   // ── Deportes ─────────────────────────────────────────────────────────────────

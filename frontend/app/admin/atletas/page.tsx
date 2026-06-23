@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useAtletas, useEquipos, useDeportes } from "@/lib/hooks";
 import type { AtletaJugador, ClubEquipo, Deporte } from "@/types/api";
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
+const inputCls = "w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
 
 type StatEdit = { goles_anotados?: number; puntos_anotados?: number; tarjetas_amarillas?: number; tarjetas_rojas?: number };
 
@@ -119,19 +119,19 @@ export default function AtletasAdminPage() {
     const hayEdicion = editStats[a.id] !== undefined;
 
     return (
-      <tr key={a.id} className="hover:bg-gray-50 transition-colors">
+      <tr key={a.id} className="hover:bg-slate-50 transition-colors">
         <td className="px-6 py-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-              <User className="w-3.5 h-3.5 text-gray-400" />
+            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+              <User className="w-3.5 h-3.5 text-slate-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-900">{a.nombre_completo}</p>
-              <p className="text-xs text-gray-400">{a.documento_identidad}{a.posicion_rol ? ` · ${a.posicion_rol}` : ""}</p>
+              <p className="text-sm font-semibold text-slate-900">{a.nombre_completo}</p>
+              <p className="text-xs text-slate-400">{a.documento_identidad}{a.posicion_rol ? ` · ${a.posicion_rol}` : ""}</p>
             </div>
           </div>
         </td>
-        <td className="px-4 py-3 text-center text-sm text-gray-500">{a.numero_camiseta ?? "—"}</td>
+        <td className="px-4 py-3 text-center text-sm text-slate-500">{a.numero_camiseta ?? "—"}</td>
         <td className="px-4 py-3 text-center">
           <input
             type="number" min={0}
@@ -143,7 +143,7 @@ export default function AtletasAdminPage() {
                 [a.id]: { ...prev[a.id], ...(futbol ? { goles_anotados: val } : { puntos_anotados: val }) },
               }));
             }}
-            className="w-16 text-center text-sm border border-gray-200 rounded-lg py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="w-16 text-center text-sm border border-slate-200 rounded-lg py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
           />
         </td>
         {futbol && (
@@ -153,7 +153,7 @@ export default function AtletasAdminPage() {
                 type="number" min={0}
                 value={statActual.tarjetas_amarillas}
                 onChange={(e) => setEditStats((prev) => ({ ...prev, [a.id]: { ...prev[a.id], tarjetas_amarillas: Number(e.target.value) } }))}
-                className="w-14 text-center text-sm border border-gray-200 rounded-lg py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-14 text-center text-sm border border-slate-200 rounded-lg py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </td>
             <td className="px-4 py-3 text-center">
@@ -161,7 +161,7 @@ export default function AtletasAdminPage() {
                 type="number" min={0}
                 value={statActual.tarjetas_rojas}
                 onChange={(e) => setEditStats((prev) => ({ ...prev, [a.id]: { ...prev[a.id], tarjetas_rojas: Number(e.target.value) } }))}
-                className="w-14 text-center text-sm border border-gray-200 rounded-lg py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-14 text-center text-sm border border-slate-200 rounded-lg py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </td>
           </>
@@ -178,7 +178,7 @@ export default function AtletasAdminPage() {
                 {guardandoStat === a.id ? "..." : "Guardar"}
               </button>
             )}
-            <button onClick={() => handleDelete(a.id)} disabled={eliminando === a.id} className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30">
+            <button onClick={() => handleDelete(a.id)} disabled={eliminando === a.id} className="text-slate-300 hover:text-red-500 transition-colors disabled:opacity-30">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -194,31 +194,31 @@ export default function AtletasAdminPage() {
     const abierto = expandido.has(eq.id);
 
     return (
-      <div key={eq.id} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      <div key={eq.id} className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
         <button
           onClick={() => toggleExpandido(eq.id)}
-          className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition"
+          className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition"
         >
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
               <User className="w-4 h-4 text-red-600" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-gray-900">{eq.nombre_equipo}</p>
-              <p className="text-xs text-gray-400">{dep?.nombre ?? "—"} · {atletasDeEquipo.length} atleta{atletasDeEquipo.length !== 1 ? "s" : ""}</p>
+              <p className="text-sm font-semibold text-slate-900">{eq.nombre_equipo}</p>
+              <p className="text-xs text-slate-400">{dep?.nombre ?? "—"} · {atletasDeEquipo.length} atleta{atletasDeEquipo.length !== 1 ? "s" : ""}</p>
             </div>
           </div>
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${abierto ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${abierto ? "rotate-180" : ""}`} />
         </button>
 
         {abierto && (
-          <div className="border-t border-gray-50 overflow-x-auto">
+          <div className="border-t border-slate-50 overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-50 bg-gray-50/60">
-                  <th className="text-left px-6 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Atleta</th>
-                  <th className="text-center px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">#</th>
-                  <th className="text-center px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <tr className="border-b border-slate-50 bg-slate-50/60">
+                  <th className="text-left px-6 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Atleta</th>
+                  <th className="text-center px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
+                  <th className="text-center px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                     {futbol ? "Goles" : "Puntos"}
                   </th>
                   {futbol && (
@@ -227,12 +227,12 @@ export default function AtletasAdminPage() {
                       <th className="text-center px-4 py-2 text-xs font-semibold text-red-400 uppercase tracking-wider">TR</th>
                     </>
                   )}
-                  <th className="text-center px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
+                  <th className="text-center px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-slate-50">
                 {atletasDeEquipo.length === 0 ? (
-                  <tr><td colSpan={futbol ? 6 : 4} className="text-center py-6 text-sm text-gray-400">Sin atletas registrados</td></tr>
+                  <tr><td colSpan={futbol ? 6 : 4} className="text-center py-6 text-sm text-slate-400">Sin atletas registrados</td></tr>
                 ) : atletasDeEquipo.map(renderAtleta)}
               </tbody>
             </table>
@@ -246,9 +246,9 @@ export default function AtletasAdminPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Atletas</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Registro de jugadores y estadísticas individuales por deporte.</p>
+          <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Administración</p>
+          <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Atletas</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Registro de jugadores y estadísticas individuales por deporte.</p>
         </div>
         <button
           onClick={() => { setModal(true); setErrorForm(""); }}
@@ -267,19 +267,19 @@ export default function AtletasAdminPage() {
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Buscar por nombre o documento..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+            className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
           />
         </div>
         <select
           value={equipoFiltro ?? ""}
           onChange={(e) => setEquipoFiltro(e.target.value ? Number(e.target.value) : undefined)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
         >
           <option value="">Todos los equipos</option>
           {equipos.map((eq) => <option key={eq.id} value={eq.id}>{eq.nombre_equipo}</option>)}
@@ -287,17 +287,17 @@ export default function AtletasAdminPage() {
       </div>
 
       {cargando ? (
-        <div className="flex items-center justify-center h-40 text-sm text-gray-400">Cargando...</div>
+        <div className="flex items-center justify-center h-40 text-sm text-slate-400">Cargando...</div>
       ) : filtrados.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-40 text-gray-300">
+        <div className="flex flex-col items-center justify-center h-40 text-slate-300">
           <User className="w-8 h-8 mb-2" strokeWidth={1.5} />
-          <p className="text-sm text-gray-400">Sin atletas registrados</p>
+          <p className="text-sm text-slate-400">Sin atletas registrados</p>
         </div>
       ) : (
         <div className="space-y-3">
           {equiposConAtletas.map(renderGrupoEquipo)}
           {atletasSinEquipo.length > 0 && (
-            <div className="bg-white border border-gray-100 rounded-xl p-4 text-sm text-gray-400">
+            <div className="bg-white border border-slate-100 rounded-xl p-4 text-sm text-slate-400">
               {atletasSinEquipo.length} atleta(s) sin equipo asignado
             </div>
           )}
@@ -311,11 +311,11 @@ export default function AtletasAdminPage() {
               <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
                 <User className="w-4 h-4 text-red-600" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900">Nuevo atleta</h2>
+              <h2 className="text-lg font-bold text-slate-900">Nuevo atleta</h2>
             </div>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Equipo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Equipo</label>
                 <select
                   value={form.club_equipo_id || ""}
                   onChange={(e) => setForm({ ...form, club_equipo_id: Number(e.target.value) })}
@@ -326,7 +326,7 @@ export default function AtletasAdminPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre completo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre completo</label>
                 <input
                   value={form.nombre_completo}
                   onChange={(e) => setForm({ ...form, nombre_completo: e.target.value })}
@@ -335,7 +335,7 @@ export default function AtletasAdminPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Documento de identidad</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Documento de identidad</label>
                 <input
                   value={form.documento_identidad}
                   onChange={(e) => setForm({ ...form, documento_identidad: e.target.value })}
@@ -345,7 +345,7 @@ export default function AtletasAdminPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">N° Camiseta</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">N° Camiseta</label>
                   <input
                     value={form.numero_camiseta}
                     onChange={(e) => setForm({ ...form, numero_camiseta: e.target.value })}
@@ -354,7 +354,7 @@ export default function AtletasAdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Posición / Rol</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Posición / Rol</label>
                   <input
                     value={form.posicion_rol}
                     onChange={(e) => setForm({ ...form, posicion_rol: e.target.value })}
@@ -366,7 +366,7 @@ export default function AtletasAdminPage() {
               {errorForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorForm}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setModal(false); setErrorForm(""); }}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardando}

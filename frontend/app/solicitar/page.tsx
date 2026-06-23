@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle, Phone } from "lucide-react";
 import { api } from "@/lib/api";
+import { useDuplicadosInstitucion } from "@/lib/useDuplicadosInstitucion";
+import { AvisoDuplicados } from "@/components/AvisoDuplicados";
 import { CATEGORIAS, CATEGORIA_PAIS, type CategoriaInstitucion } from "@/types/api";
 
 const PREGUNTAS = [
@@ -44,6 +46,9 @@ export default function SolicitarPage() {
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
+
+  // Aviso en vivo si la institución ya parece estar registrada.
+  const { similares, exacto } = useDuplicadosInstitucion(form.nombre_institucion);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -95,6 +100,11 @@ export default function SolicitarPage() {
     const p3 = form.pregunta_seguridad_3;
     if (p1 === p2 || p1 === p3 || p2 === p3) {
       setError("Debes seleccionar 3 preguntas de seguridad diferentes");
+      return;
+    }
+
+    if (exacto) {
+      setError(`Ya existe una institución registrada con ese nombre: «${exacto.nombre}». Si es la tuya, pide acceso al administrador.`);
       return;
     }
 
@@ -249,6 +259,16 @@ export default function SolicitarPage() {
                   required
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
+                {similares.length > 0 && (
+                  <div className="mt-2">
+                    <AvisoDuplicados similares={similares} />
+                    {exacto && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Si esta institución es la tuya, pide acceso al administrador en lugar de registrarla de nuevo.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1">Ciudad</label>

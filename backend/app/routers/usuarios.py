@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -53,11 +53,17 @@ def approve(id: int, db: Session = Depends(get_db), current_user: Usuario = Depe
 
 
 @router.patch("/{id}/deactivate", response_model=UsuarioOut)
-def deactivate(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+def deactivate(id: int, db: Session = Depends(get_db), current_user: Usuario = Depends(require_admin)):
     """Desactiva un usuario (acceso bloqueado)."""
     user = db.query(Usuario).filter(Usuario.id == id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    # Evita que un admin se bloquee a sí mismo y pierda el acceso al panel.
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No puedes desactivar tu propia cuenta",
+        )
     user.esta_activo = False
     db.commit()
     db.refresh(user)

@@ -5,7 +5,7 @@ import { Dumbbell, Plus, Trash2, Search, AlertCircle, CheckCircle, Trophy, Link2
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useEquipos, useInstituciones, useDeportes, useTorneos, useInscripciones } from "@/lib/hooks";
-import type { ClubEquipo, Institucion, Deporte, Torneo, Inscripcion, AtletaJugador } from "@/types/api";
+import type { ClubEquipo, Deporte, AtletaJugador } from "@/types/api";
 
 function esFutbol(deporte: Deporte | undefined): boolean {
   if (!deporte) return false;
@@ -13,7 +13,7 @@ function esFutbol(deporte: Deporte | undefined): boolean {
   return n.includes("fútbol") || n.includes("futbol");
 }
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
+const inputCls = "w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition";
 
 const ESTADO_BADGE: Record<string, string> = {
   pendiente: "bg-amber-50 text-amber-700",
@@ -201,7 +201,7 @@ export default function EquiposPage() {
         nombre_completo: formEditAtleta.nombre_completo,
         numero_camiseta: formEditAtleta.numero_camiseta || undefined,
         posicion_rol: formEditAtleta.posicion_rol || undefined,
-        estado: formEditAtleta.estado as any,
+        estado: formEditAtleta.estado as AtletaJugador["estado"],
       });
       setModalEditAtleta(null);
       await cargarAtletasDelEquipo(modalEditAtleta.club_equipo_id);
@@ -261,8 +261,13 @@ export default function EquiposPage() {
     e.preventDefault();
     setError(""); setSuccess("");
     if (!form.institucion_id || !form.deporte_id) { setErrorForm("Selecciona institución y deporte."); return; }
-    if (form.nombre_equipo.length > 50) {
-      setErrorForm("El nombre del equipo no puede tener más de 50 caracteres.");
+    const nombreEquipo = form.nombre_equipo.trim();
+    if (nombreEquipo.length < 2) {
+      setErrorForm("El nombre del equipo debe tener al menos 2 caracteres.");
+      return;
+    }
+    if (nombreEquipo.length > 150) {
+      setErrorForm("El nombre del equipo no puede tener más de 150 caracteres.");
       return;
     }
     if (!form.torneo_id && torneosCompatibles.length > 0) {
@@ -272,7 +277,7 @@ export default function EquiposPage() {
     setGuardando(true); setErrorForm("");
     try {
       const { torneo_id, ...equipoData } = form;
-      const equipo = await api.createEquipo(equipoData);
+      const equipo = await api.createEquipo({ ...equipoData, nombre_equipo: nombreEquipo });
 
       if (torneo_id) {
         try {
@@ -307,8 +312,8 @@ export default function EquiposPage() {
     e.preventDefault();
     if (!modalEditEquipo) return;
     const nombre = formEditEquipo.nombre_equipo.trim();
-    if (!nombre) { setErrorEditEquipoForm("El nombre del equipo es obligatorio."); return; }
-    if (nombre.length > 50) { setErrorEditEquipoForm("El nombre del equipo no puede tener más de 50 caracteres."); return; }
+    if (nombre.length < 2) { setErrorEditEquipoForm("El nombre del equipo debe tener al menos 2 caracteres."); return; }
+    if (nombre.length > 150) { setErrorEditEquipoForm("El nombre del equipo no puede tener más de 150 caracteres."); return; }
     setGuardandoEditEquipo(true);
     setErrorEditEquipoForm("");
     try {
@@ -402,9 +407,9 @@ export default function EquiposPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Administración</p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Equipos</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Gestión de clubes y equipos por institución.</p>
+          <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Administración</p>
+          <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Equipos</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Gestión de clubes y equipos por institución.</p>
         </div>
         <button
           onClick={() => { setModal(true); setErrorForm(""); setSuccess(""); setError(""); }}
@@ -435,35 +440,35 @@ export default function EquiposPage() {
       )}
 
       <div className="relative w-80">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           type="text"
           placeholder="Buscar por equipo o institución..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+          className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500 transition"
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100">
+            <tr className="border-b border-slate-100">
               <th className="w-10"></th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">#</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Equipo</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Institución</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Deporte</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Torneo Inscrito</th>
-              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Estado</th>
-              <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Equipo</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Institución</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Deporte</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Torneo Inscrito</th>
+              <th className="text-center px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Estado</th>
+              <th className="text-center px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-slate-50">
             {cargando ? (
-              <tr><td colSpan={8} className="text-center py-14 text-sm text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={8} className="text-center py-14 text-sm text-slate-400">Cargando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-14 text-sm text-gray-400">
+              <tr><td colSpan={8} className="text-center py-14 text-sm text-slate-400">
                 {busqueda ? "Sin resultados" : "No hay equipos registrados"}
               </td></tr>
             ) : filtrados.map(eq => {
@@ -475,27 +480,27 @@ export default function EquiposPage() {
               const torneoAsoc = insc ? torneos.find(t => t.id === insc.torneo_id) : null;
               return (
                 <React.Fragment key={eq.id}>
-                  <tr className="hover:bg-gray-50 transition-colors border-b border-gray-50">
+                  <tr className="hover:bg-slate-50 transition-colors border-b border-slate-50">
                     <td className="px-3 py-4 text-center">
                       <button
                         onClick={() => toggleTeamExpand(eq.id)}
-                        className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-950 transition-colors"
+                        className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-950 transition-colors"
                       >
                         <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expandedTeams.has(eq.id) ? "rotate-180 text-red-600" : ""}`} />
                       </button>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-400 font-mono">{String(eq.id).padStart(2, "0")}</td>
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">{String(eq.id).padStart(2, "0")}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
                           <Dumbbell className="w-4 h-4 text-red-600" />
                         </div>
-                        <p className="text-sm font-semibold text-gray-900">{eq.nombre_equipo}</p>
+                        <p className="text-sm font-semibold text-slate-900">{eq.nombre_equipo}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{instMap.get(eq.institucion_id) ?? `#${eq.institucion_id}`}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{depMap.get(eq.deporte_id) ?? `#${eq.deporte_id}`}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    <td className="px-6 py-4 text-sm text-slate-600">{instMap.get(eq.institucion_id) ?? `#${eq.institucion_id}`}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{depMap.get(eq.deporte_id) ?? `#${eq.deporte_id}`}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
                       {torneoAsoc ? (
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold">
@@ -507,7 +512,7 @@ export default function EquiposPage() {
                               onClick={() => handleDesvincular(insc.id, eq.nombre_equipo)}
                               disabled={desvinculando === insc.id}
                               title="Desvincular del torneo"
-                              className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-30"
+                              className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-30"
                             >
                               <Unlink className="w-3.5 h-3.5" />
                             </button>
@@ -519,17 +524,17 @@ export default function EquiposPage() {
                             setModalInscribir(eq);
                             setInscribirTorneoId(0);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:text-red-600 hover:border-red-300 text-xs font-semibold transition"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:text-red-600 hover:border-red-300 text-xs font-semibold transition"
                         >
                           <Link2 className="w-3 h-3" />
                           Asignar Torneo
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400 font-medium">Aprobar primero</span>
+                        <span className="text-xs text-slate-400 font-medium">Aprobar primero</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${ESTADO_BADGE[eq.estado] ?? "bg-gray-100 text-gray-500"}`}>
+                      <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${ESTADO_BADGE[eq.estado] ?? "bg-slate-100 text-slate-500"}`}>
                         {eq.estado}
                       </span>
                     </td>
@@ -548,14 +553,14 @@ export default function EquiposPage() {
                         <button
                           onClick={() => { setModalEditEquipo(eq); setFormEditEquipo({ nombre_equipo: eq.nombre_equipo }); setErrorEditEquipoForm(""); }}
                           title="Editar equipo"
-                          className="text-gray-300 hover:text-blue-500 transition-colors"
+                          className="text-slate-300 hover:text-blue-500 transition-colors"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => { setConfirmarEliminarEquipo(eq); setErrorConfirmEquipo(""); }}
                           title="Eliminar equipo"
-                          className="text-gray-300 hover:text-red-500 transition-colors"
+                          className="text-slate-300 hover:text-red-500 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -564,13 +569,13 @@ export default function EquiposPage() {
                   </tr>
 
                   {expandedTeams.has(eq.id) && (
-                    <tr className="bg-gray-50/50">
-                      <td colSpan={8} className="px-8 py-4 border-b border-gray-100">
+                    <tr className="bg-slate-50/50">
+                      <td colSpan={8} className="px-8 py-4 border-b border-slate-100">
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Integrantes del Equipo</span>
-                              <span className="px-2.5 py-0.5 bg-gray-200 text-gray-700 text-xs font-semibold rounded-full">
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Integrantes del Equipo</span>
+                              <span className="px-2.5 py-0.5 bg-slate-200 text-slate-700 text-xs font-semibold rounded-full">
                                 {atletasPorEquipo[eq.id]?.length || 0}
                               </span>
                             </div>
@@ -593,13 +598,13 @@ export default function EquiposPage() {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100/50">
-                            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase">Estadísticas por Torneo</span>
+                          <div className="flex flex-wrap items-center gap-3 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
+                            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">Estadísticas por Torneo</span>
                               <select
                                 value={filtroTorneo[eq.id] ?? ""}
                                 onChange={e => handleFiltroStatsChange(eq.id, e.target.value ? Number(e.target.value) : undefined, filtroFase[eq.id])}
-                                className="border-none text-xs font-semibold text-gray-700 focus:outline-none focus:ring-0 bg-transparent p-0 cursor-pointer font-sans"
+                                className="border-none text-xs font-semibold text-slate-700 focus:outline-none focus:ring-0 bg-transparent p-0 cursor-pointer font-sans"
                               >
                                 <option value="">Global (Total)</option>
                                 {torneos.map(t => (
@@ -608,12 +613,12 @@ export default function EquiposPage() {
                               </select>
                             </div>
 
-                            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase">Fase</span>
+                            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">Fase</span>
                               <select
                                 value={filtroFase[eq.id] ?? ""}
                                 onChange={e => handleFiltroStatsChange(eq.id, filtroTorneo[eq.id], e.target.value || undefined)}
-                                className="border-none text-xs font-semibold text-gray-700 focus:outline-none focus:ring-0 bg-transparent p-0 cursor-pointer font-sans"
+                                className="border-none text-xs font-semibold text-slate-700 focus:outline-none focus:ring-0 bg-transparent p-0 cursor-pointer font-sans"
                               >
                                 <option value="">Todas las fases</option>
                                 <option value="Fase de Grupos">Fase de Grupos</option>
@@ -624,29 +629,29 @@ export default function EquiposPage() {
                             </div>
 
                             {filtroTorneo[eq.id] ? (
-                              <span className="text-xs text-gray-400 italic">
+                              <span className="text-xs text-slate-400 italic">
                                 * Las estadísticas por torneo son de solo lectura y se calculan desde los encuentros.
                               </span>
                             ) : null}
                           </div>
 
                           {cargandoAtletas[eq.id] ? (
-                            <div className="text-center py-8 text-sm text-gray-400 flex items-center justify-center gap-2">
+                            <div className="text-center py-8 text-sm text-slate-400 flex items-center justify-center gap-2">
                               <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                               Cargando atletas...
                             </div>
                           ) : !atletasPorEquipo[eq.id] || atletasPorEquipo[eq.id].length === 0 ? (
-                            <div className="text-center py-8 text-sm text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">
+                            <div className="text-center py-8 text-sm text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
                               Sin atletas registrados en este equipo.
                             </div>
                           ) : (
-                            <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+                            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
                               <table className="w-full text-left">
                                 <thead>
-                                  <tr className="bg-gray-50 border-b border-gray-200">
-                                    <th className="px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Atleta</th>
-                                    <th className="px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-16">N°</th>
-                                    <th className="px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-24">
+                                  <tr className="bg-slate-50 border-b border-slate-200">
+                                    <th className="px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider">Atleta</th>
+                                    <th className="px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-16">N°</th>
+                                    <th className="px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-24">
                                       {esFutbol(depObjMap.get(eq.deporte_id)) ? "Goles" : "Puntos"}
                                     </th>
                                     {esFutbol(depObjMap.get(eq.deporte_id)) && (
@@ -655,11 +660,11 @@ export default function EquiposPage() {
                                         <th className="px-4 py-2.5 text-xs font-bold text-red-600 uppercase tracking-wider text-center w-16">TR</th>
                                       </>
                                     )}
-                                    <th className="px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Estado</th>
-                                    <th className="px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Acciones</th>
+                                    <th className="px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-28">Estado</th>
+                                    <th className="px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-28">Acciones</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100">
+                                <tbody className="divide-y divide-slate-100">
                                   {atletasPorEquipo[eq.id].map(a => {
                                     const dep = depObjMap.get(eq.deporte_id);
                                     const futbol = esFutbol(dep);
@@ -673,22 +678,22 @@ export default function EquiposPage() {
                                     const hayEdicion = editStats[a.id] !== undefined;
                                     const isFiltered = !!filtroTorneo[eq.id] || !!filtroFase[eq.id];
                                     return (
-                                      <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
+                                      <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="px-4 py-3">
                                           <div className="flex items-center gap-2.5">
-                                            <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
-                                              <User className="w-3.5 h-3.5 text-gray-400" />
+                                            <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                              <User className="w-3.5 h-3.5 text-slate-400" />
                                             </div>
                                             <div>
-                                              <p className="text-sm font-semibold text-gray-900 leading-tight">{a.nombre_completo}</p>
-                                              <p className="text-xs text-gray-400 mt-0.5">{a.documento_identidad}{a.posicion_rol ? ` · ${a.posicion_rol}` : ""}</p>
+                                              <p className="text-sm font-semibold text-slate-900 leading-tight">{a.nombre_completo}</p>
+                                              <p className="text-xs text-slate-400 mt-0.5">{a.documento_identidad}{a.posicion_rol ? ` · ${a.posicion_rol}` : ""}</p>
                                             </div>
                                           </div>
                                         </td>
-                                        <td className="px-4 py-3 text-center text-sm font-medium text-gray-600">{a.numero_camiseta ?? "—"}</td>
+                                        <td className="px-4 py-3 text-center text-sm font-medium text-slate-600">{a.numero_camiseta ?? "—"}</td>
                                         <td className="px-4 py-3 text-center">
                                           {isFiltered ? (
-                                            <span className="text-sm font-bold text-gray-900">
+                                            <span className="text-sm font-bold text-slate-900">
                                               {futbol ? statActual.goles_anotados : statActual.puntos_anotados}
                                             </span>
                                           ) : (
@@ -706,7 +711,7 @@ export default function EquiposPage() {
                                                   },
                                                 }));
                                               }}
-                                              className="w-14 text-center text-sm border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white transition bg-transparent"
+                                              className="w-14 text-center text-sm border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white transition bg-transparent"
                                             />
                                           )}
                                         </td>
@@ -714,7 +719,7 @@ export default function EquiposPage() {
                                           <>
                                             <td className="px-4 py-3 text-center">
                                               {isFiltered ? (
-                                                <span className="text-sm font-bold text-gray-900">
+                                                <span className="text-sm font-bold text-slate-900">
                                                   {statActual.tarjetas_amarillas}
                                                 </span>
                                               ) : (
@@ -729,13 +734,13 @@ export default function EquiposPage() {
                                                       [a.id]: { ...prev[a.id], tarjetas_amarillas: val },
                                                     }));
                                                   }}
-                                                  className="w-12 text-center text-sm border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white transition bg-transparent"
+                                                  className="w-12 text-center text-sm border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white transition bg-transparent"
                                                 />
                                               )}
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                               {isFiltered ? (
-                                                <span className="text-sm font-bold text-gray-900">
+                                                <span className="text-sm font-bold text-slate-900">
                                                   {statActual.tarjetas_rojas}
                                                 </span>
                                               ) : (
@@ -750,7 +755,7 @@ export default function EquiposPage() {
                                                       [a.id]: { ...prev[a.id], tarjetas_rojas: val },
                                                     }));
                                                   }}
-                                                  className="w-12 text-center text-sm border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white transition bg-transparent"
+                                                  className="w-12 text-center text-sm border border-slate-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white transition bg-transparent"
                                                 />
                                               )}
                                             </td>
@@ -759,7 +764,7 @@ export default function EquiposPage() {
                                         <td className="px-4 py-3 text-center">
                                           <span className={`inline-flex text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full ${
                                             a.estado === "activo" ? "bg-green-50 text-green-700" :
-                                            a.estado === "suspendido" ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-gray-100 text-gray-500"
+                                            a.estado === "suspendido" ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-slate-100 text-slate-500"
                                           }`}>
                                             {a.estado}
                                           </span>
@@ -789,7 +794,7 @@ export default function EquiposPage() {
                                                 setErrorEditAtletaForm("");
                                               }}
                                               title="Editar datos del atleta"
-                                              className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition"
+                                              className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition"
                                             >
                                               <Edit className="w-4 h-4" />
                                             </button>
@@ -797,7 +802,7 @@ export default function EquiposPage() {
                                               onClick={() => handleDeleteAtleta(a)}
                                               disabled={eliminandoAtleta === a.id}
                                               title="Eliminar atleta del equipo"
-                                              className="text-gray-300 hover:text-red-500 p-1 hover:bg-red-50 rounded-lg transition disabled:opacity-30"
+                                              className="text-slate-300 hover:text-red-500 p-1 hover:bg-red-50 rounded-lg transition disabled:opacity-30"
                                             >
                                               <Trash2 className="w-4 h-4" />
                                             </button>
@@ -829,23 +834,23 @@ export default function EquiposPage() {
                 <Dumbbell className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Nuevo equipo</h2>
-                <p className="text-xs text-gray-400 mt-0.5">El admin aprueba el equipo automáticamente</p>
+                <h2 className="text-lg font-bold text-slate-900">Nuevo equipo</h2>
+                <p className="text-xs text-slate-400 mt-0.5">El admin aprueba el equipo automáticamente</p>
               </div>
             </div>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre del equipo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre del equipo</label>
                 <input
                   value={form.nombre_equipo}
                   onChange={e => setForm({ ...form, nombre_equipo: e.target.value })}
-                  maxLength={50}
+                  maxLength={150}
                   required placeholder="Ej. UL Fútbol A"
                   className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Institución</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Institución</label>
                 <select
                   value={form.institucion_id || ""}
                   onChange={e => setForm({ ...form, institucion_id: Number(e.target.value) })}
@@ -856,7 +861,7 @@ export default function EquiposPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Deporte</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Deporte</label>
                 <select
                   value={form.deporte_id || ""}
                   onChange={e => setForm({ ...form, deporte_id: Number(e.target.value) })}
@@ -869,11 +874,11 @@ export default function EquiposPage() {
 
               {/* Torneo: requerido si hay abiertos, opcional si no */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Torneo
                   {torneosAbiertos.length > 0
                     ? <span className="ml-1 text-red-500">*</span>
-                    : <span className="ml-1 font-normal text-gray-400">(opcional — no hay torneos abiertos)</span>
+                    : <span className="ml-1 font-normal text-slate-400">(opcional — no hay torneos abiertos)</span>
                   }
                 </label>
                 <select
@@ -892,7 +897,7 @@ export default function EquiposPage() {
                     <option key={t.id} value={t.id}>{t.nombre} ({t.temporada})</option>
                   ))}
                 </select>
-                <p className="mt-1.5 text-xs text-gray-400">
+                <p className="mt-1.5 text-xs text-slate-400">
                   El equipo se inscribe automáticamente. Sin inscripción no aparece en Sorteos.
                 </p>
               </div>
@@ -900,7 +905,7 @@ export default function EquiposPage() {
               {errorForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorForm}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setModal(false); setErrorForm(""); }}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardando}
@@ -922,25 +927,25 @@ export default function EquiposPage() {
                 <Trophy className="w-4 h-4 text-indigo-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Inscribir en Torneo</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Asignar torneo al equipo para permitir su participación</p>
+                <h2 className="text-lg font-bold text-slate-900">Inscribir en Torneo</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Asignar torneo al equipo para permitir su participación</p>
               </div>
             </div>
             <form onSubmit={handleInscribir} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Equipo</label>
-                <div className="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-900 border border-gray-100 font-semibold">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Equipo</label>
+                <div className="w-full bg-slate-50 rounded-lg px-3 py-2.5 text-sm text-slate-900 border border-slate-100 font-semibold">
                   {modalInscribir.nombre_equipo}
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Deporte</label>
-                <div className="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-600 border border-gray-100">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Deporte</label>
+                <div className="w-full bg-slate-50 rounded-lg px-3 py-2.5 text-sm text-slate-600 border border-slate-100">
                   {depMap.get(modalInscribir.deporte_id) ?? "Desconocido"}
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Seleccionar Torneo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Seleccionar Torneo</label>
                 <select
                   value={inscribirTorneoId || ""}
                   onChange={e => setInscribirTorneoId(Number(e.target.value))}
@@ -966,7 +971,7 @@ export default function EquiposPage() {
                 <button
                   type="button"
                   onClick={() => setModalInscribir(null)}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition"
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
                 >
                   Cancelar
                 </button>
@@ -986,19 +991,19 @@ export default function EquiposPage() {
       {/* Modal para registrar Atleta directamente */}
       {modalAtletaTeam && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-100">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
                 <User className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Registrar Atleta</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Equipo: <span className="font-semibold text-gray-700">{modalAtletaTeam.nombre_equipo}</span></p>
+                <h2 className="text-lg font-bold text-slate-900">Registrar Atleta</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Equipo: <span className="font-semibold text-slate-700">{modalAtletaTeam.nombre_equipo}</span></p>
               </div>
             </div>
             <form onSubmit={handleCreateAtleta} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre Completo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre Completo</label>
                 <input
                   value={formAtleta.nombre_completo}
                   onChange={e => setFormAtleta({ ...formAtleta, nombre_completo: e.target.value })}
@@ -1009,7 +1014,7 @@ export default function EquiposPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Documento de Identidad</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Documento de Identidad</label>
                 <input
                   type="text"
                   pattern="[0-9]*"
@@ -1024,7 +1029,7 @@ export default function EquiposPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">N° Camiseta</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">N° Camiseta</label>
                   <input
                     type="text"
                     pattern="[0-9]*"
@@ -1037,7 +1042,7 @@ export default function EquiposPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Posición / Rol</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Posición / Rol</label>
                   <input
                     value={formAtleta.posicion_rol}
                     onChange={e => setFormAtleta({ ...formAtleta, posicion_rol: e.target.value.replace(/\d/g, "") })}
@@ -1053,7 +1058,7 @@ export default function EquiposPage() {
                 <button
                   type="button"
                   onClick={() => setModalAtletaTeam(null)}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition"
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl text-sm hover:bg-slate-50 transition"
                 >
                   Cancelar
                 </button>
@@ -1073,19 +1078,19 @@ export default function EquiposPage() {
       {/* Modal para editar Atleta */}
       {modalEditAtleta && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-gray-100">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-slate-100">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
                 <User className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Editar Atleta</h2>
-                <p className="text-xs text-gray-400 mt-0.5">DNI: <span className="font-semibold text-gray-700">{modalEditAtleta.documento_identidad}</span></p>
+                <h2 className="text-lg font-bold text-slate-900">Editar Atleta</h2>
+                <p className="text-xs text-slate-400 mt-0.5">DNI: <span className="font-semibold text-slate-700">{modalEditAtleta.documento_identidad}</span></p>
               </div>
             </div>
             <form onSubmit={handleEditAtleta} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre Completo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre Completo</label>
                 <input
                   value={formEditAtleta.nombre_completo}
                   onChange={e => setFormEditAtleta({ ...formEditAtleta, nombre_completo: e.target.value })}
@@ -1097,7 +1102,7 @@ export default function EquiposPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">N° Camiseta</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">N° Camiseta</label>
                   <input
                     type="text"
                     pattern="[0-9]*"
@@ -1110,7 +1115,7 @@ export default function EquiposPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Posición / Rol</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Posición / Rol</label>
                   <input
                     value={formEditAtleta.posicion_rol}
                     onChange={e => setFormEditAtleta({ ...formEditAtleta, posicion_rol: e.target.value.replace(/\d/g, "") })}
@@ -1121,7 +1126,7 @@ export default function EquiposPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Estado</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Estado</label>
                 <select
                   value={formEditAtleta.estado}
                   onChange={e => setFormEditAtleta({ ...formEditAtleta, estado: e.target.value })}
@@ -1138,7 +1143,7 @@ export default function EquiposPage() {
                 <button
                   type="button"
                   onClick={() => setModalEditAtleta(null)}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50 transition"
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl text-sm hover:bg-slate-50 transition"
                 >
                   Cancelar
                 </button>
@@ -1164,19 +1169,19 @@ export default function EquiposPage() {
                 <Dumbbell className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Editar equipo</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <h2 className="text-lg font-bold text-slate-900">Editar equipo</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
                   {instMap.get(modalEditEquipo.institucion_id) ?? ""} · {depMap.get(modalEditEquipo.deporte_id) ?? ""}
                 </p>
               </div>
             </div>
             <form onSubmit={handleEditEquipo} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Nombre del equipo</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre del equipo</label>
                 <input
                   value={formEditEquipo.nombre_equipo}
                   onChange={e => setFormEditEquipo({ nombre_equipo: e.target.value })}
-                  maxLength={50}
+                  maxLength={150}
                   required placeholder="Ej. UL Fútbol A"
                   className={inputCls}
                 />
@@ -1184,7 +1189,7 @@ export default function EquiposPage() {
               {errorEditEquipoForm && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg">{errorEditEquipoForm}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setModalEditEquipo(null); setErrorEditEquipoForm(""); }}
-                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                  className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardandoEditEquipo}
@@ -1205,10 +1210,10 @@ export default function EquiposPage() {
               <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
                 <Trash2 className="w-4 h-4 text-red-600" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900">Eliminar equipo</h2>
+              <h2 className="text-lg font-bold text-slate-900">Eliminar equipo</h2>
             </div>
-            <p className="text-sm text-gray-600">
-              ¿Seguro que deseas eliminar <span className="font-semibold text-gray-900">{confirmarEliminarEquipo.nombre_equipo}</span>?
+            <p className="text-sm text-slate-600">
+              ¿Seguro que deseas eliminar <span className="font-semibold text-slate-900">{confirmarEliminarEquipo.nombre_equipo}</span>?
               Dejará de mostrarse en la lista, pero se conservará en la base de datos.
             </p>
             {errorConfirmEquipo && (
@@ -1218,7 +1223,7 @@ export default function EquiposPage() {
             )}
             <div className="flex gap-3 pt-5">
               <button type="button" onClick={() => { setConfirmarEliminarEquipo(null); setErrorConfirmEquipo(""); }}
-                className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-gray-50 transition">
+                className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
                 Cancelar
               </button>
               <button type="button" onClick={handleDelete} disabled={eliminando === confirmarEliminarEquipo.id}
