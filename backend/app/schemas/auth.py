@@ -43,6 +43,8 @@ class SolicitudAccesoRequest(BaseModel):
     contrasena: str
     nombre_institucion: str
     ciudad: str
+    nivel: str | None = None
+    categoria: str | None = None
     pregunta_seguridad_1: str
     respuesta_seguridad_1: str
     pregunta_seguridad_2: str

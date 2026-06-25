@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models.usuarios import Usuario
 from app.schemas.usuarios import UsuarioOut
 from app.core.deps import require_admin
+from app.core import email as email_service
 
 router = APIRouter()
 
@@ -30,18 +31,27 @@ def get_by_id(id: int, db: Session = Depends(get_db), _: Usuario = Depends(requi
 
 @router.patch("/{id}/approve", response_model=UsuarioOut)
 def approve(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    """Aprueba una solicitud de acceso — activa el usuario y su institución."""
+    """Aprueba una solicitud de acceso — activa el usuario, su institución y envía email."""
     user = db.query(Usuario).filter(Usuario.id == id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     user.esta_activo = True
+    nombre_institucion = "tu institución"
     if user.institucion_id:
         from app.models.instituciones import Institucion
+        from app.core.pais_categoria import asignar_pais
         inst = db.query(Institucion).filter(Institucion.id == user.institucion_id).first()
         if inst:
             inst.estado = "activo"
+            nombre_institucion = inst.nombre
     db.commit()
     db.refresh(user)
+    # Enviar email de confirmación (no bloquea si falla)
+    email_service.enviar_aprobacion(
+        correo=user.correo,
+        nombre=f"{user.nombres} {user.apellidos}",
+        nombre_institucion=nombre_institucion,
+    )
     return user
 
 
@@ -55,3 +65,17 @@ def deactivate(id: int, db: Session = Depends(get_db), _: Usuario = Depends(requ
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.delete("/{id}", status_code=204)
+def delete_usuario(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    """Elimina un usuario. Solo permitido si está inactivo y no es admin."""
+    user = db.query(Usuario).filter(Usuario.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if user.esta_activo:
+        raise HTTPException(status_code=400, detail="Desactiva el usuario antes de eliminarlo")
+    if user.rol == "admin":
+        raise HTTPException(status_code=400, detail="No se puede eliminar al administrador")
+    db.delete(user)
+    db.commit()

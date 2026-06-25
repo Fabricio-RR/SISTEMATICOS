@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Users, CheckCircle, XCircle, Clock, Search, Building2, Mail, RefreshCw } from "lucide-react";
+import { Users, CheckCircle, XCircle, Clock, Search, Building2, Mail, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Usuario = {
@@ -49,6 +49,17 @@ export default function UsuariosPage() {
     setAccion(id);
     try {
       await api.deactivateUsuario(id);
+      await cargar();
+    } finally {
+      setAccion(null);
+    }
+  }
+
+  async function eliminar(id: number, nombre: string) {
+    if (!confirm(`¿Eliminar permanentemente al usuario "${nombre}"? Esta acción no se puede deshacer.`)) return;
+    setAccion(id);
+    try {
+      await api.deleteUsuario(id);
       await cargar();
     } finally {
       setAccion(null);
@@ -221,14 +232,26 @@ export default function UsuariosPage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {!u.esta_activo ? (
-                          <button
-                            onClick={() => aprobar(u.id)}
-                            disabled={accion === u.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-xs font-bold rounded-lg transition-colors"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Aprobar
-                          </button>
+                          <>
+                            <button
+                              onClick={() => aprobar(u.id)}
+                              disabled={accion === u.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-xs font-bold rounded-lg transition-colors"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Aprobar
+                            </button>
+                            {u.rol !== "admin" && (
+                              <button
+                                onClick={() => eliminar(u.id, `${u.nombres} ${u.apellidos}`)}
+                                disabled={accion === u.id}
+                                title="Eliminar usuario"
+                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
                         ) : u.rol !== "admin" ? (
                           <button
                             onClick={() => desactivar(u.id)}

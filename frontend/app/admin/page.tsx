@@ -1,25 +1,27 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Radio, Users, Calendar, Building2, Shuffle, BarChart3, CheckCircle, Clock, ArrowRight } from "lucide-react";
+import { Radio, Users, Calendar, Building2, Shuffle, BarChart3, ArrowRight, Clock, MapPin } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
-const actividadReciente = [
-  { icon: CheckCircle, color: "text-green-500", titulo: "Nuevo resultado: Fútbol", sub: "Institución A vs Institución B (2 – 1)", usuario: "Carlos G.", estado: "Verificado", estadoColor: "bg-gray-100 text-gray-600" },
-  { icon: Users, color: "text-blue-500", titulo: "Institución U inscribió 5 jugadores", sub: "Básquet Categoría Sub-17", usuario: "Ana M.", estado: "EN PROCESO", estadoColor: "bg-yellow-50 text-yellow-600 border border-yellow-200" },
-];
-
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ deportes: 0, instituciones: 0, equipos: 0 });
-  const [vista, setVista] = useState<"vivo" | "proximos">("vivo");
+  const [resumen, setResumen] = useState<any>(null);
+  const [pendientes, setPendientes] = useState(0);
+  const [vista, setVista] = useState<"vivo" | "proximos">("proximos");
+  const [partidosVista, setPartidosVista] = useState<any[]>([]);
 
   useEffect(() => {
-    Promise.all([api.getDeportes(), api.getInstituciones(), api.getEquipos()])
-      .then(([deportes, instituciones, equipos]) => {
-        setStats({ deportes: deportes.length, instituciones: instituciones.length, equipos: equipos.length });
-      })
-      .catch(() => {});
+    api.getResumen().then(setResumen).catch(() => {});
+    api.getPendientes().then((u: any[]) => setPendientes(u.length)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (vista === "vivo") {
+      api.getEnCurso().then(setPartidosVista).catch(() => setPartidosVista([]));
+    } else {
+      api.getProximosPartidos(6).then(setPartidosVista).catch(() => setPartidosVista([]));
+    }
+  }, [vista]);
 
   return (
     <div>
@@ -49,7 +51,7 @@ export default function AdminDashboard() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-3 gap-5 mb-8">
-        {/* Partidos */}
+        {/* Partidos en curso */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm relative overflow-hidden">
           <div className="flex items-start justify-between">
             <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center">
@@ -61,8 +63,12 @@ export default function AdminDashboard() {
           </div>
           <div className="mt-4">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Partidos en Curso</p>
-            <p className="text-5xl font-black text-gray-900 mt-1">12</p>
-            <p className="text-xs text-gray-400 mt-2">Competiciones activas en 4 sedes deportivas distintas.</p>
+            <p className="text-5xl font-black text-gray-900 mt-1">
+              {resumen ? resumen.partidos_en_curso : "—"}
+            </p>
+            <p className="text-xs text-gray-400 mt-2">
+              {resumen ? `${resumen.partidos_pendientes} encuentros por disputar` : "Cargando..."}
+            </p>
           </div>
           <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-gray-50 rounded-full" />
         </div>
@@ -73,32 +79,101 @@ export default function AdminDashboard() {
             <Users className="w-5 h-5 text-gray-600" />
           </div>
           <div className="mt-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Atletas</p>
-            <p className="text-5xl font-black text-gray-900 mt-1">{stats.equipos > 0 ? `${stats.equipos * 12}` : "—"}</p>
-            <p className="text-xs text-gray-400 mt-2">Jugadores registrados en el sistema</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Atletas Registrados</p>
+            <p className="text-5xl font-black text-gray-900 mt-1">
+              {resumen ? resumen.atletas : "—"}
+            </p>
+            <p className="text-xs text-gray-400 mt-2">
+              {resumen ? `En ${resumen.equipos} equipos inscritos` : "Cargando..."}
+            </p>
           </div>
         </div>
 
-        {/* Pendientes */}
+        {/* Solicitudes pendientes */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-gray-600" />
+          <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
+            <Clock className="w-5 h-5 text-orange-500" />
           </div>
           <div className="mt-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pendientes</p>
-            <p className="text-5xl font-black text-gray-900 mt-1">184</p>
-            <p className="text-xs text-gray-400 mt-2">Encuentros por disputar</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Solicitudes Pendientes</p>
+            <p className="text-5xl font-black text-gray-900 mt-1">{pendientes}</p>
+            <p className="text-xs text-gray-400 mt-2">
+              Instituciones esperando aprobación
+            </p>
           </div>
         </div>
       </div>
 
+      {/* Stats secundarios */}
+      {resumen && (
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          {[
+            { label: "Instituciones", val: resumen.instituciones, color: "text-blue-600" },
+            { label: "Torneos Activos", val: resumen.torneos, color: "text-green-600" },
+            { label: "Equipos", val: resumen.equipos, color: "text-purple-600" },
+            { label: "Partidos Totales", val: resumen.partidos_total, color: "text-gray-600" },
+          ].map(({ label, val, color }) => (
+            <div key={label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
+              <p className={`text-2xl font-black ${color}`}>{val}</p>
+              <p className="text-xs text-gray-400 mt-1 font-medium">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Panel EN VIVO / PRÓXIMOS */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-8 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-50">
+          <h2 className="font-black text-gray-900 text-sm">
+            {vista === "vivo" ? "⚽ Partidos en Curso" : "📅 Próximos Partidos"}
+          </h2>
+        </div>
+        {partidosVista.length === 0 ? (
+          <p className="px-6 py-6 text-sm text-gray-400 text-center">
+            {vista === "vivo" ? "No hay partidos en curso en este momento" : "No hay partidos programados próximamente"}
+          </p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {partidosVista.map((p: any) => (
+              <div key={p.id} className="px-6 py-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-gray-400 uppercase">{p.ronda}</span>
+                  {p.fecha_hora && (
+                    <span className="text-xs text-gray-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {new Date(p.fecha_hora).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })} {new Date(p.fecha_hora).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
+                      {p.sede_nombre && <><MapPin className="w-3 h-3 ml-1" /> {p.sede_nombre}</>}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 text-right">
+                    <p className="font-bold text-gray-900 text-sm">{p.local?.nombre ?? "—"}</p>
+                    {p.local?.pais && <p className="text-xs text-gray-400">{p.local.pais_emoji} {p.local.pais}</p>}
+                  </div>
+                  <span className="text-lg font-black text-gray-400 min-w-[40px] text-center">
+                    {p.resultado_local !== null ? `${p.resultado_local}–${p.resultado_visitante}` : "vs"}
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-900 text-sm">{p.visitante?.nombre ?? "—"}</p>
+                    {p.visitante?.pais && <p className="text-xs text-gray-400">{p.visitante.pais_emoji} {p.visitante.pais}</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Accesos rápidos */}
       <p className="text-xs font-bold tracking-widest text-gray-400 uppercase mb-4">Accesos Rápidos</p>
-      <div className="grid grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-3 gap-5">
         {[
-          { icon: Building2, titulo: "Gestión de Instituciones", desc: "Inscribe colegios, universidades y clubes. Gestiona los rosters.", link: "/admin/instituciones", cta: "ABRIR CONSOLA" },
+          { icon: Building2, titulo: "Gestión de Instituciones", desc: "Inscribe colegios, universidades y clubes. Aprueba solicitudes.", link: "/admin/instituciones", cta: "ABRIR CONSOLA" },
           { icon: Shuffle, titulo: "Organizador de Fixtures", desc: "Emparejamientos, sorteos automatizados y gestión de horarios.", link: "/admin/sorteos", cta: "INICIAR ORGANIZADOR" },
           { icon: BarChart3, titulo: "Resultados y Estadísticas", desc: "Ingreso de puntajes en tiempo real y tablas de posiciones.", link: "/admin/resultados", cta: "VER ESTADÍSTICAS" },
+          { icon: Calendar, titulo: "Gestión de Encuentros", desc: "Programa fechas, sedes y árbitros para cada partido.", link: "/admin/encuentros", cta: "VER ENCUENTROS" },
+          { icon: Users, titulo: "Usuarios", desc: "Aprueba o rechaza solicitudes de acceso institucional.", link: "/admin/usuarios", cta: "GESTIONAR" },
         ].map(({ icon: Icon, titulo, desc, link, cta }) => (
           <div key={link} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center mb-4">
@@ -111,40 +186,6 @@ export default function AdminDashboard() {
             </Link>
           </div>
         ))}
-      </div>
-
-      {/* Actividad reciente */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-        <div className="px-6 py-5 border-b border-gray-50">
-          <h2 className="font-black text-gray-900 text-lg">Actividad Reciente</h2>
-        </div>
-        <div>
-          <div className="grid grid-cols-3 text-xs font-bold text-gray-400 uppercase tracking-wider px-6 py-3 border-b border-gray-50">
-            <span>Actividad</span>
-            <span>Usuario</span>
-            <span>Estado</span>
-          </div>
-          {actividadReciente.map((item, i) => (
-            <div key={i} className="grid grid-cols-3 items-center px-6 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
-              <div className="flex items-center gap-3">
-                <item.icon className={`w-5 h-5 ${item.color}`} />
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{item.titulo}</p>
-                  <p className="text-xs text-gray-400">{item.sub}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
-                  {item.usuario.charAt(0)}
-                </div>
-                <span className="text-sm text-gray-600">{item.usuario}</span>
-              </div>
-              <span className={`text-xs font-bold px-3 py-1.5 rounded-lg w-fit ${item.estadoColor}`}>
-                {item.estado}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

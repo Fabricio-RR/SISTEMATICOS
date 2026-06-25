@@ -6,6 +6,7 @@ from app.models.instituciones import Institucion
 from app.schemas.instituciones import InstitucionCreate, InstitucionUpdate, InstitucionOut
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
+from app.core.pais_categoria import asignar_pais
 
 router = APIRouter()
 
@@ -39,6 +40,11 @@ def update(id: int, data: InstitucionUpdate, db: Session = Depends(get_db), _: U
         raise HTTPException(status_code=404, detail="Institución no encontrada")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(inst, field, value)
+    # Auto-asignar país cuando se actualiza nivel/categoría
+    if inst.nivel and inst.categoria and not inst.pais_asignado:
+        pais, emoji = asignar_pais(inst.nivel, inst.categoria)
+        inst.pais_asignado = pais
+        inst.pais_emoji = emoji
     db.commit()
     db.refresh(inst)
     return inst

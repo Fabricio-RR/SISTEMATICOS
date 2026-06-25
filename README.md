@@ -1,96 +1,122 @@
-# Olimpiadas Perú — Sistema de Gestión Deportiva
+# Olimpiadas PERÚ 2026 — Sistema de Gestión Deportiva
 
-Sistema web para la gestión de competencias, inscripciones, fixtures y resultados de las Olimpiadas Perú.
-
----
-
-## Stack tecnológico
-
-| Capa | Tecnología |
-|---|---|
-| Frontend | JavaScript — Next.js 14 + Tailwind CSS |
-| Backend | Python — FastAPI |
-| Base de datos | MySQL 8.0 |
-| ORM | SQLAlchemy + Alembic |
-| Autenticación | JWT + bcrypt |
-| Infraestructura | Docker + Docker Compose |
+Sistema web para gestionar competencias, inscripciones, fixtures y resultados de las Olimpiadas PERÚ.
 
 ---
 
-## Estructura del proyecto
+## ¿Qué necesito instalar?
 
-```
-SISTEMATICOS/
-├── backend/                  # API REST (FastAPI)
-│   ├── app/
-│   │   ├── models/           # Modelos SQLAlchemy (14 tablas)
-│   │   ├── schemas/          # Schemas Pydantic (validación)
-│   │   ├── routers/          # Endpoints REST
-│   │   └── core/             # JWT, hashing, dependencias
-│   ├── alembic/              # Migraciones de base de datos
-│   ├── seed.py               # Datos iniciales (admin + deportes)
-│   └── requirements.txt
-├── frontend/                 # Interfaz web (Next.js)
-│   └── app/
-│       ├── page.tsx          # Landing - Portal del Aficionado
-│       ├── login/            # Inicio de sesión
-│       ├── recovery/         # Recuperación de contraseña
-│       └── admin/            # Panel administrativo
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
+Solo dos programas:
+
+| Programa | Para qué sirve | Descarga |
+|---|---|---|
+| **Docker Desktop** | Levanta la base de datos y el backend automáticamente | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
+| **Node.js 18+** | Corre el frontend (la interfaz web) | [nodejs.org](https://nodejs.org/) |
+
+> ✅ No necesitas instalar Python, MySQL ni nada más. Docker lo maneja todo.
 
 ---
 
-## Opción A — Con Docker (recomendado, funciona en Windows, Mac y Linux)
+## Levantar el sistema (paso a paso)
 
-### Requisitos
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado y corriendo
+### Paso 1 — Clonar el repositorio
 
-### Pasos
-
-**1. Clonar el repositorio**
 ```bash
 git clone https://github.com/Fabricio-RR/SISTEMATICOS.git
 cd SISTEMATICOS
 ```
 
-**2. Crear el archivo de variables de entorno**
+---
+
+### Paso 2 — Crear el archivo de configuración
+
+Copia el archivo de ejemplo:
+
 ```bash
-# Copiar el ejemplo
+# En Mac / Linux / Git Bash:
 cp .env.example .env
-```
-> No es necesario cambiar nada para desarrollo local. El `.env` ya tiene valores predeterminados.
 
-**3. Levantar todo con un solo comando**
+# En Windows (CMD):
+copy .env.example .env
+```
+
+Abre el `.env` que acabas de crear y reemplaza su contenido con esto exactamente:
+
+```env
+MYSQL_ROOT_PASSWORD=root_olimpiadas_2026
+MYSQL_DATABASE=olimpiadas_peru
+MYSQL_USER=olimpiadas_user
+MYSQL_PASSWORD=olimpiadas_pass_2026
+
+DATABASE_URL=mysql+pymysql://olimpiadas_user:olimpiadas_pass_2026@db:3306/olimpiadas_peru
+
+SECRET_KEY=cambia_esta_clave_secreta_en_produccion_2026
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+
+SMTP_USER=
+SMTP_PASSWORD=
+```
+
+> El campo `SMTP_USER` y `SMTP_PASSWORD` se dejan vacíos si no vas a usar el envío de correos.
+
+---
+
+### Paso 3 — Levantar la base de datos y el backend
+
+Abre una terminal en la carpeta raíz del proyecto (`SISTEMATICOS/`) y ejecuta:
+
 ```bash
-docker compose up --build
+docker compose up -d
 ```
 
-Esto hace automáticamente:
-- Levanta MySQL y espera a que esté listo
-- Ejecuta las migraciones (crea las 14 tablas)
-- Crea el usuario admin inicial
-- Inicia el servidor FastAPI
+Este comando hace **todo automáticamente** — no hay que crear tablas ni cargar datos a mano:
 
-**4. Levantar el frontend (en otra terminal)**
+| Qué hace | Archivo responsable |
+|---|---|
+| Espera a que MySQL esté listo | `backend/entrypoint.sh` |
+| Crea las 15 tablas de la base de datos | `backend/alembic/versions/` (migraciones) |
+| Carga el usuario admin y datos de demo | `backend/seed.py` |
+| Inicia el servidor de la API | `backend/entrypoint.sh` → `uvicorn` |
+
+> Si la base de datos ya existe (segunda vez en adelante), el seed detecta que los datos ya están y no los duplica.
+
+**Espera unos 30 segundos** la primera vez (descarga las imágenes de Docker). Puedes verificar que todo esté corriendo con:
+
+```bash
+docker ps
+```
+
+Deberías ver 3 contenedores activos: `olimpiadas_backend`, `olimpiadas_db`, `olimpiadas_phpmyadmin`.
+
+---
+
+### Paso 4 — Levantar el frontend
+
+Abre **otra terminal** (sin cerrar la anterior) en la misma carpeta del proyecto:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-**5. Listo — abrir en el navegador**
+La primera vez `npm install` puede tardar 1-2 minutos descargando paquetes.
 
-| URL | Descripción |
+---
+
+### Paso 5 — Abrir el sistema en el navegador
+
+| URL | Qué es |
 |---|---|
-| `http://localhost:3000` | Portal del Aficionado (público) |
+| `http://localhost:3000` | Portal público del aficionado |
 | `http://localhost:3000/login` | Inicio de sesión |
-| `http://localhost:3000/admin` | Panel administrativo |
-| `http://localhost:8000/docs` | Documentación API (Swagger) |
+| `http://localhost:3000/admin` | Panel de administración |
+| `http://localhost:8000/docs` | Documentación de la API (Swagger) |
+| `http://localhost:8080` | Base de datos visual (phpMyAdmin) |
 
-**Credenciales de acceso iniciales:**
+**Credenciales del administrador:**
+
 ```
 Correo:     admin@olimpiadas.pe
 Contraseña: Admin1234!
@@ -98,162 +124,69 @@ Contraseña: Admin1234!
 
 ---
 
-### Comandos Docker útiles
+## Apagar el sistema
 
 ```bash
-# Levantar en segundo plano
-docker compose up -d --build
-
-# Ver logs del backend
-docker logs olimpiadas_backend -f
-
-# Ver logs de la base de datos
-docker logs olimpiadas_db -f
-
-# Detener todo
+# Detener todo (los datos se conservan)
 docker compose down
 
-# Detener y borrar la base de datos (para empezar de cero)
-docker compose down -v
+# La próxima vez, para volver a levantar:
+docker compose up -d
+# y en otra terminal:
+cd frontend && npm run dev
+```
+
+> ⚠️ **Nunca uses** `docker compose down -v` — ese comando borra la base de datos y perderás todos los datos.
+
+---
+
+## Solución de problemas comunes
+
+**"Cannot connect to the Docker daemon" o Docker no responde**
+→ Abre Docker Desktop y espera a que el ícono de la ballena esté en verde.
+
+**El backend tarda en responder al inicio**
+→ Es normal la primera vez. MySQL necesita ~20 segundos en arrancar. Espera y recarga.
+
+**"Port 3000 already in use"**
+→ Cierra cualquier otra aplicación que use el puerto 3000 o ejecuta `npm run dev -- -p 3001`.
+
+**"Port 8000 already in use"**
+→ Ejecuta `docker compose down` y vuelve a hacer `docker compose up -d`.
+
+**El frontend muestra errores de API**
+→ Verifica que el backend esté corriendo: abre `http://localhost:8000/docs` en el navegador. Si no carga, revisa los logs con `docker logs olimpiadas_backend`.
+
+**Ver logs del backend en tiempo real:**
+```bash
+docker logs olimpiadas_backend -f
 ```
 
 ---
 
-## Opción B — Sin Docker (instalación manual)
-
-Para equipos sin Docker Desktop. Requiere instalar cada componente por separado.
-
-### Requisitos previos
-- [Python 3.11+](https://www.python.org/downloads/)
-- [Node.js 18+](https://nodejs.org/)
-- [MySQL 8.0](https://dev.mysql.com/downloads/installer/) instalado y corriendo
-
-### Paso 1 — Preparar MySQL
-
-Abre MySQL Workbench o la terminal de MySQL y ejecuta:
-
-```sql
-CREATE DATABASE olimpiadas_peru CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'olimpiadas_user'@'localhost' IDENTIFIED BY 'olimpiadas_pass_2026';
-GRANT ALL PRIVILEGES ON olimpiadas_peru.* TO 'olimpiadas_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-### Paso 2 — Configurar el archivo `.env`
+## Correr los tests automatizados
 
 ```bash
-cp .env.example .env
+docker exec olimpiadas_backend python -m pytest tests/ -v
 ```
 
-Edita `.env` y cambia la línea `DATABASE_URL` para apuntar a `localhost` en vez de `db`:
-
-```env
-DATABASE_URL=mysql+pymysql://olimpiadas_user:olimpiadas_pass_2026@localhost:3306/olimpiadas_peru
-```
-
-### Paso 3 — Instalar y correr el backend
-
-```bash
-cd backend
-
-# Crear entorno virtual
-python -m venv venv
-
-# Activar entorno virtual
-# En Windows:
-venv\Scripts\activate
-# En Mac/Linux:
-source venv/bin/activate
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Crear las tablas en la base de datos
-alembic upgrade head
-
-# Crear datos iniciales (admin + deportes)
-python seed.py
-
-# Iniciar el servidor
-uvicorn app.main:app --reload --port 8000
-```
-
-### Paso 4 — Instalar y correr el frontend
-
-```bash
-# Abrir una nueva terminal
-cd frontend
-npm install
-npm run dev
-```
-
-### Paso 5 — Configurar la URL del API en el frontend
-
-Crea el archivo `frontend/.env.local` con:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
+Resultado esperado: **41 tests passed**.
 
 ---
 
-## Base de datos — 14 tablas
+## Stack tecnológico
 
-```
-instituciones     → colegios, universidades y clubes
-usuarios          → cuentas del sistema (admin, institucion, arbitro)
-deportes          → catálogo de deportes
-club_equipo       → equipos con estadísticas de tabla
-atleta_jugador    → jugadores con estadísticas individuales
-torneos           → competencias organizadas por deporte
-grupos            → grupos dentro de un torneo (fase grupos)
-inscripciones     → equipos inscritos en un torneo
-sedes             → lugares de competencia
-fixture           → jornadas y fases del torneo
-partidos          → encuentros programados y resultados
-eventos_partido   → goles, tarjetas, eventos por minuto
-auditoria         → registro de cambios críticos
-noticias          → contenido del portal público
-```
-
----
-
-## Autenticación
-
-El sistema usa **JWT (JSON Web Tokens)**:
-
-- Al hacer login se recibe un token
-- El token se envía en cada petición: `Authorization: Bearer <token>`
-- Las contraseñas y respuestas de seguridad se almacenan con **bcrypt** (nunca en texto plano)
-
-### Recuperación de contraseña (sin email)
-
-Flujo de 3 preguntas de seguridad:
-1. El usuario ingresa su correo → recibe sus 3 preguntas
-2. Responde las 3 preguntas correctamente → define nueva contraseña
-
----
-
-## API — Endpoints principales
-
-| Método | Endpoint | Descripción |
-|---|---|---|
-| POST | `/api/auth/login` | Iniciar sesión |
-| POST | `/api/auth/register` | Registrar usuario |
-| GET | `/api/auth/me` | Perfil del usuario autenticado |
-| POST | `/api/auth/recovery/questions` | Obtener preguntas de seguridad |
-| POST | `/api/auth/recovery/reset` | Cambiar contraseña con respuestas |
-| GET | `/api/instituciones/` | Listar instituciones |
-| POST | `/api/instituciones/` | Crear institución (admin) |
-| GET | `/api/deportes/` | Listar deportes |
-| GET | `/api/equipos/` | Listar equipos |
-| GET | `/api/torneos/` | Listar torneos |
-| GET | `/api/sedes/` | Listar sedes |
-| GET | `/api/noticias/` | Noticias publicadas |
-
-> Documentación interactiva completa: `http://localhost:8000/docs`
+| Capa | Tecnología |
+|---|---|
+| Frontend | Next.js 14 + TypeScript + Tailwind CSS |
+| Backend | Python 3.11 + FastAPI + SQLAlchemy 2.0 |
+| Base de datos | MySQL 8.0 |
+| Autenticación | JWT + bcrypt |
+| Infraestructura | Docker + Docker Compose |
+| Tests | pytest + FastAPI TestClient |
 
 ---
 
 ## Equipo — SISTEMATICOS
 
-Proyecto universitario — Olimpiadas Perú
+Proyecto universitario UTP — Olimpiadas PERÚ 2026

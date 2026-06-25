@@ -38,13 +38,20 @@ try:
     )
     db.add(admin)
 
+    # Deportes obligatorios con límites de jugadores
+    # Fútbol: 11 titulares + 7 suplentes
+    # Básquet: 5 titulares + 7 suplentes
+    # Vóley: 6 titulares + 6 suplentes (más libero)
+    # Ping Pong: 2 jugadores, mixto (pareja)
+    # Atletismo individual: 1 participante + hasta 2 alternos
     deportes_iniciales = [
-        Deporte(nombre="Fútbol Varones", tipo_competidor="equipo"),
-        Deporte(nombre="Fútbol Damas", tipo_competidor="equipo"),
-        Deporte(nombre="Básquet Varones", tipo_competidor="equipo"),
-        Deporte(nombre="Básquet Damas", tipo_competidor="equipo"),
-        Deporte(nombre="Vóley Mixto", tipo_competidor="equipo"),
-        Deporte(nombre="Atletismo 100m", tipo_competidor="individual"),
+        Deporte(nombre="Fútbol Varones",  tipo_competidor="equipo",     min_jugadores=11, max_jugadores=18, esta_activo=True),
+        Deporte(nombre="Básquet Varones", tipo_competidor="equipo",     min_jugadores=5,  max_jugadores=12, esta_activo=True),
+        Deporte(nombre="Vóley Damas",     tipo_competidor="equipo",     min_jugadores=6,  max_jugadores=12, esta_activo=True),
+        Deporte(nombre="Ping Pong Mixto", tipo_competidor="equipo",     min_jugadores=2,  max_jugadores=4,  esta_activo=True),
+        Deporte(nombre="Fútbol Damas",    tipo_competidor="equipo",     min_jugadores=11, max_jugadores=18, esta_activo=True),
+        Deporte(nombre="Básquet Damas",   tipo_competidor="equipo",     min_jugadores=5,  max_jugadores=12, esta_activo=True),
+        Deporte(nombre="Atletismo 100m",  tipo_competidor="individual", min_jugadores=1,  max_jugadores=3,  esta_activo=True),
     ]
     for d in deportes_iniciales:
         db.add(d)
@@ -52,7 +59,7 @@ try:
     db.commit()
     print("Seed completado:")
     print("  Admin: admin@olimpiadas.pe / Admin1234!")
-    print("  Preguntas de seguridad del admin: respuestas = admin / lima / olimpiadas")
+    print("  Preguntas de seguridad: respuestas = admin / lima / olimpiadas")
     print(f"  Deportes creados: {len(deportes_iniciales)}")
 
 except Exception as e:

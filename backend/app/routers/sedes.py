@@ -24,6 +24,19 @@ def create(data: SedeCreate, db: Session = Depends(get_db), _: Usuario = Depends
     return sede
 
 
+@router.put("/{id}", response_model=SedeOut)
+def update(id: int, data: SedeCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    sede = db.query(Sede).filter(Sede.id == id, Sede.esta_activo == True).first()
+    if not sede:
+        raise HTTPException(status_code=404, detail="Sede no encontrada")
+    sede.nombre_sede = data.nombre_sede
+    sede.ciudad = data.ciudad
+    sede.capacidad = data.capacidad
+    db.commit()
+    db.refresh(sede)
+    return sede
+
+
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     sede = db.query(Sede).filter(Sede.id == id).first()

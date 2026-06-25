@@ -17,6 +17,8 @@ class ClubEquipo(Base):
     partidos_jugados: Mapped[int] = mapped_column(Integer, default=0)
     partidos_ganados: Mapped[int] = mapped_column(Integer, default=0)
     partidos_perdidos: Mapped[int] = mapped_column(Integer, default=0)
+    pais_asignado: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pais_emoji: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     institucion: Mapped["Institucion"] = relationship("Institucion", back_populates="equipos")
     deporte: Mapped["Deporte"] = relationship("Deporte", back_populates="equipos")

@@ -32,5 +32,20 @@ services:
     volumes:
       - ./backend:/app
 
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: olimpiadas_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+      UPLOAD_LIMIT: 50M
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   mysql_data:

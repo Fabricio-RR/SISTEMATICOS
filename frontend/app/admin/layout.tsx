@@ -4,17 +4,21 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Trophy, LayoutDashboard, Building2, UserPlus, Swords,
-  Shuffle, BarChart3, Bell, Settings, LogOut, ChevronRight, Plus, Users
+  Shuffle, BarChart3, Bell, Settings, LogOut, ChevronRight, Plus, Users, Dumbbell, MapPin, FileBarChart
 } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Inicio", icon: LayoutDashboard },
+  { href: "/admin/torneos", label: "Torneos", icon: Trophy },
+  { href: "/admin/deportes", label: "Deportes", icon: Dumbbell },
   { href: "/admin/instituciones", label: "Instituciones", icon: Building2 },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users },
   { href: "/admin/inscripciones", label: "Inscripciones", icon: UserPlus },
+  { href: "/admin/sedes", label: "Sedes", icon: MapPin },
   { href: "/admin/encuentros", label: "Encuentros", icon: Swords },
   { href: "/admin/sorteos", label: "Sorteos", icon: Shuffle },
   { href: "/admin/resultados", label: "Resultados", icon: BarChart3 },
+  { href: "/admin/reportes", label: "Reportes", icon: FileBarChart },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -26,14 +30,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const token = localStorage.getItem("token");
     const rol = localStorage.getItem("rol");
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-    if (rol !== "admin") {
-      router.replace("/institucion");
-      return;
-    }
+    if (!token) { router.replace("/login"); return; }
+    if (rol !== "admin") { router.replace("/institucion"); return; }
     setNombre(localStorage.getItem("nombre") ?? "Admin");
     setListo(true);
   }, [router]);
@@ -55,7 +53,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-60 bg-white border-r border-gray-100 flex flex-col shadow-sm">
-        {/* Logo top */}
         <div className="p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center shadow">
@@ -77,10 +74,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
+            const active = pathname === href || (href !== "/admin" && pathname.startsWith(href));
             return (
               <Link
                 key={href}
@@ -98,7 +94,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
-        {/* Footer sidebar */}
         <div className="p-3 border-t border-gray-100">
           <button
             onClick={logout}
@@ -119,12 +114,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Topbar */}
         <header className="bg-white border-b border-gray-100 px-8 h-14 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className="font-semibold text-gray-700">Panel</span>
             <ChevronRight className="w-3.5 h-3.5" />
-            <span>Centro de Ayuda</span>
+            <span>{navItems.find(n => pathname === n.href || (n.href !== "/admin" && pathname.startsWith(n.href)))?.label ?? "Panel"}</span>
           </div>
           <div className="flex items-center gap-3">
             <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition">
@@ -139,15 +133,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </header>
 
-        {/* Content */}
         <main className="flex-1 overflow-y-auto p-8">{children}</main>
 
-        {/* FAB */}
+        {/* FAB → crea torneo */}
         <div className="fixed bottom-6 left-64">
-          <button className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-5 py-3 rounded-full shadow-lg shadow-red-200 flex items-center gap-2 transition-colors">
+          <Link
+            href="/admin/torneos"
+            className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-5 py-3 rounded-full shadow-lg shadow-red-200 flex items-center gap-2 transition-colors"
+          >
             <Plus className="w-4 h-4" />
-            CREAR NUEVO EVENTO
-          </button>
+            NUEVO TORNEO
+          </Link>
         </div>
       </div>
     </div>

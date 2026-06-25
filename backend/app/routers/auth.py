@@ -85,6 +85,8 @@ def solicitar_acceso(data: SolicitudAccesoRequest, db: Session = Depends(get_db)
         nombre_corto=data.nombre_institucion[:6].upper(),
         ciudad=data.ciudad,
         estado="pendiente",
+        nivel=data.nivel,
+        categoria=data.categoria,
     )
     db.add(institucion)
     db.flush()  # obtener el id sin hacer commit aún

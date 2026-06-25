@@ -2,8 +2,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle, GraduationCap } from "lucide-react";
 import { api } from "@/lib/api";
+
+const NIVELES = ["universidad", "colegio", "instituto"] as const;
+
+const CATEGORIAS: Record<string, string[]> = {
+  universidad: ["1° ciclo", "2° ciclo", "3° ciclo", "4° ciclo", "5° ciclo", "6° ciclo", "7° ciclo", "8° ciclo", "9° ciclo", "10° ciclo"],
+  colegio:     ["1°", "2°", "3°", "4°", "5°", "6°"],
+  instituto:   ["1°", "2°", "3°"],
+};
 
 const PREGUNTAS = [
   "¿Cuál es el nombre de tu primera mascota?",
@@ -30,6 +38,8 @@ export default function SolicitarPage() {
     contrasena: "",
     nombre_institucion: "",
     ciudad: "",
+    nivel: "",
+    categoria: "",
     pregunta_seguridad_1: PREGUNTAS[0],
     respuesta_seguridad_1: "",
     pregunta_seguridad_2: PREGUNTAS[1],
@@ -198,7 +208,7 @@ export default function SolicitarPage() {
           {/* Institución */}
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Datos de la institución</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1">Nombre de la institución</label>
                 <input
@@ -223,6 +233,37 @@ export default function SolicitarPage() {
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">
+                  <GraduationCap className="w-3.5 h-3.5 inline mr-1" />Nivel educativo
+                </label>
+                <select
+                  value={form.nivel}
+                  onChange={(e) => { set("nivel", e.target.value); set("categoria", ""); }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">— Selecciona —</option>
+                  {NIVELES.map(n => (
+                    <option key={n} value={n} className="capitalize">{n.charAt(0).toUpperCase() + n.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Categoría / Ciclo</label>
+                <select
+                  value={form.categoria}
+                  onChange={(e) => set("categoria", e.target.value)}
+                  disabled={!form.nivel}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                >
+                  <option value="">— Selecciona —</option>
+                  {(CATEGORIAS[form.nivel] ?? []).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

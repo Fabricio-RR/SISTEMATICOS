@@ -10,9 +10,12 @@ class Torneo(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     deporte_id: Mapped[int] = mapped_column(Integer, ForeignKey("deportes.id"))
     nombre: Mapped[str] = mapped_column(String(150))
-    formato: Mapped[str] = mapped_column(String(30), default="liga")  # liga, eliminacion_simple, grupos
+    formato: Mapped[str] = mapped_column(String(30), default="liga")
     temporada: Mapped[str] = mapped_column(String(20))
     estado: Mapped[str] = mapped_column(String(30), default="activo")
+    fecha_inicio: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    fecha_fin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    descripcion: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
     deporte: Mapped["Deporte"] = relationship("Deporte", back_populates="torneos")
     grupos: Mapped[list["Grupo"]] = relationship("Grupo", back_populates="torneo")

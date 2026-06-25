@@ -24,5 +24,7 @@ class ClubEquipoOut(ClubEquipoBase):
     partidos_jugados: int
     partidos_ganados: int
     partidos_perdidos: int
+    pais_asignado: str | None = None
+    pais_emoji: str | None = None
 
     model_config = {"from_attributes": True}
