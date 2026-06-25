@@ -190,3 +190,4 @@ Resultado esperado: **41 tests passed**.
 ## Equipo — SISTEMATICOS
 
 Proyecto universitario UTP — Olimpiadas PERÚ 2026
+## Arquitectura Orientada al Servicio- Sección 24230 
