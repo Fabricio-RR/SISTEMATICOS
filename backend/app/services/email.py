@@ -1,15 +1,5 @@
 """
 Servicio para enviar correos electrónicos del sistema.
-
-Cómo funciona:
-- Los datos del servidor de correo se leen del archivo .env (variables SMTP_*).
-  Si el correo está desactivado o no se configuró, en lugar de enviar solo
-  escribe el mensaje en la consola. Así el proyecto se puede levantar y probar
-  sin tener una cuenta de correo configurada.
-- Si el envío falla (por ejemplo, el servidor de correo no responde), NO corta
-  la operación: la inscripción se aprueba igual y el error solo queda registrado
-  en el log. El correo siempre se envía después de responderle al usuario, para
-  que la pantalla no se quede esperando.
 """
 import logging
 import smtplib

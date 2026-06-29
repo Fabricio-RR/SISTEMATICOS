@@ -72,7 +72,7 @@ def goleadores(torneo_id: int, limit: int = 10, db: Session = Depends(get_db)):
     etiqueta = "Goles" if es_futbol else "Puntos"
     tipo_gol = "gol" if es_futbol else "puntos"
 
-    # Dynamic aggregation of goals/points grouped by athlete
+    # Suma de goles/puntos por atleta a partir de los eventos de partido del torneo.
     goleadores_query = (
         db.query(
             AtletaJugador,
@@ -94,7 +94,7 @@ def goleadores(torneo_id: int, limit: int = 10, db: Session = Depends(get_db)):
 
     goleador_ids = [a.id for a, _ in goleadores_query]
 
-    # Query cards count for these top scorers in this tournament
+    # Tarjetas (amarillas/rojas) de esos goleadores en el torneo, en una sola consulta.
     cards_map = {}
     if goleador_ids:
         cards_query = (
