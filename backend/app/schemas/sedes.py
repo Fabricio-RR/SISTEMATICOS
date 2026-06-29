@@ -12,6 +12,12 @@ class SedeCreate(SedeBase):
     pass
 
 
+class SedeUpdate(BaseModel):
+    nombre_sede: str | None = None
+    ciudad: str | None = None
+    capacidad: int | None = None
+
+
 class SedeOut(SedeBase):
     id: int
 
