@@ -30,6 +30,8 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Alias usado por algunos tests para abrir una sesión directa a la BD de pruebas.
+TestingSession = TestingSessionLocal
 
 
 class AppClient:
@@ -46,6 +48,18 @@ class AppClient:
 
     def get(self, path: str, **kwargs):
         return self.request("GET", path, **kwargs)
+
+    def post(self, path: str, **kwargs):
+        return self.request("POST", path, **kwargs)
+
+    def put(self, path: str, **kwargs):
+        return self.request("PUT", path, **kwargs)
+
+    def patch(self, path: str, **kwargs):
+        return self.request("PATCH", path, **kwargs)
+
+    def delete(self, path: str, **kwargs):
+        return self.request("DELETE", path, **kwargs)
 
 
 @pytest.fixture(autouse=True)
