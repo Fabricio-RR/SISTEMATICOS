@@ -1,0 +1,14 @@
+# Normaliza los fines de línea: el repositorio guarda LF y evita el churn
+# CRLF/LF entre equipos Windows/Mac/Linux (elimina el warning de git en cada add).
+* text=auto eol=lf
+
+# Archivos binarios: no tocar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.gz binary
+*.woff binary
+*.woff2 binary

@@ -38,7 +38,7 @@ export default function AdminSedes() {
       await api.createSede({
         nombre_sede: form.nombre_sede.trim(),
         ciudad: form.ciudad.trim(),
-        capacidad: form.capacidad ? Number(form.capacidad) : null,
+        capacidad: form.capacidad ? Number(form.capacidad) : undefined,
       });
       flash("Sede creada correctamente");
       setModalCrear(false);
@@ -71,7 +71,7 @@ export default function AdminSedes() {
       await api.updateSede(editando.id, {
         nombre_sede: editForm.nombre_sede.trim(),
         ciudad: editForm.ciudad.trim(),
-        capacidad: editForm.capacidad ? Number(editForm.capacidad) : null,
+        capacidad: editForm.capacidad ? Number(editForm.capacidad) : undefined,
       });
       flash("Sede actualizada");
       setEditando(null);

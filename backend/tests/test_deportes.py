@@ -52,6 +52,9 @@ def test_crear_deporte_sin_autenticacion(client):
 
 
 def test_listar_deportes(client):
+    token = _get_admin_token(client)
+    client.post("/api/deportes/", json={"nombre": "Fútbol Varones", "tipo_competidor": "equipo"},
+                headers={"Authorization": f"Bearer {token}"})
     res = client.get("/api/deportes/")
     assert res.status_code == 200
     deportes = res.json()

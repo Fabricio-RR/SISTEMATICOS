@@ -1,32 +1,46 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
-class TorneoBase(BaseModel):
+FORMATOS_TORNEO = ["liga", "eliminacion_simple", "grupos"]
+
+ESTADOS_TORNEO = [
+    "inscripcion_abierta",
+    "inscripcion_cerrada",
+    "en_sorteo",
+    "en_curso",
+    "finalizado",
+    "suspendido",
+]
+
+TRANSICIONES = {
+    "inscripcion_abierta":  "inscripcion_cerrada",
+    "inscripcion_cerrada":  "en_sorteo",
+    "en_sorteo":            "en_curso",
+    "en_curso":             "finalizado",
+}
+
+
+class TorneoCreate(BaseModel):
     deporte_id: int
-    nombre: str
-    formato: str = "grupos"
-    temporada: str
-    estado: str = "activo"
-    fecha_inicio: str | None = None
-    fecha_fin: str | None = None
-    descripcion: str | None = None
+    nombre: str = Field(min_length=2, max_length=150)
+    formato: str = "liga"
+    temporada: str = Field(min_length=4, max_length=20)
+
+    @field_validator("nombre", "temporada", mode="before")
+    @classmethod
+    def _trim(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("formato")
+    @classmethod
+    def _formato_valido(cls, v):
+        if v not in FORMATOS_TORNEO:
+            raise ValueError(f"Formato inválido. Opciones: {', '.join(FORMATOS_TORNEO)}")
+        return v
 
 
-class TorneoCreate(TorneoBase):
-    pass
-
-
-class TorneoUpdate(BaseModel):
-    nombre: str | None = None
-    formato: str | None = None
-    temporada: str | None = None
-    estado: str | None = None
-    fecha_inicio: str | None = None
-    fecha_fin: str | None = None
-    descripcion: str | None = None
-
-
-class TorneoOut(TorneoBase):
+class TorneoOut(TorneoCreate):
     id: int
+    estado: str
 
     model_config = {"from_attributes": True}

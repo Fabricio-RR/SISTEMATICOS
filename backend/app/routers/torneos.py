@@ -1,17 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.torneos import Torneo
 from app.models.deportes import Deporte
 from app.models.inscripciones import Inscripcion
-from app.models.grupos import Grupo
 from app.models.fixture import Fixture
-from app.models.partidos import Partido
-from app.models.eventos_partido import EventoPartido
-from app.schemas.torneos import TorneoCreate, TorneoUpdate, TorneoOut
 from app.core.deps import require_admin
+from app.core.texto import normalizar
 from app.models.usuarios import Usuario
+from app.schemas.torneos import TorneoCreate, TorneoOut, TRANSICIONES
+from app.services.competition import assert_transition_allowed
 
 router = APIRouter()
 
@@ -31,23 +31,82 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=TorneoOut, status_code=status.HTTP_201_CREATED)
 def create(data: TorneoCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    deporte = db.query(Deporte).filter(Deporte.id == data.deporte_id).first()
-    if not deporte:
-        raise HTTPException(status_code=404, detail="Deporte no encontrado")
+    if not db.query(Deporte).filter(Deporte.id == data.deporte_id, Deporte.esta_activo == True).first():
+        raise HTTPException(status_code=404, detail="Deporte no encontrado o inactivo")
+
+    # Evitar torneos duplicados aunque el nombre esté escrito distinto
+    # (mismo deporte y temporada). La restricción UNIQUE cubre el caso exacto.
+    objetivo = normalizar(data.nombre)
+    temporada_norm = normalizar(data.temporada)
+    existentes = db.query(Torneo).filter(Torneo.deporte_id == data.deporte_id).all()
+    if any(
+        normalizar(t.nombre) == objetivo and normalizar(t.temporada) == temporada_norm
+        for t in existentes
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
+        )
+
     torneo = Torneo(**data.model_dump())
     db.add(torneo)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
+        )
+    db.refresh(torneo)
+    return torneo
+
+
+@router.patch("/{id}/avanzar", response_model=TorneoOut)
+def avanzar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    torneo = db.query(Torneo).filter(Torneo.id == id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    siguiente = TRANSICIONES.get(torneo.estado)
+    if not siguiente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El torneo está en estado '{torneo.estado}' y no puede avanzar.",
+        )
+    assert_transition_allowed(torneo, siguiente, db)
+    torneo.estado = siguiente
     db.commit()
     db.refresh(torneo)
     return torneo
 
 
-@router.put("/{id}", response_model=TorneoOut)
-def update(id: int, data: TorneoUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+@router.patch("/{id}/suspender", response_model=TorneoOut)
+def suspender(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     torneo = db.query(Torneo).filter(Torneo.id == id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(torneo, field, value)
+    if torneo.estado == "finalizado":
+        raise HTTPException(status_code=400, detail="No se puede suspender un torneo finalizado.")
+    if torneo.estado == "suspendido":
+        raise HTTPException(status_code=400, detail="El torneo ya está suspendido.")
+    torneo.estado_previo = torneo.estado
+    torneo.estado = "suspendido"
+    db.commit()
+    db.refresh(torneo)
+    return torneo
+
+
+@router.patch("/{id}/reactivar", response_model=TorneoOut)
+def reactivar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    torneo = db.query(Torneo).filter(Torneo.id == id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado != "suspendido":
+        raise HTTPException(status_code=400, detail="El torneo no está suspendido.")
+    if not torneo.estado_previo:
+        raise HTTPException(status_code=400, detail="No hay estado anterior registrado. Contacta al administrador del sistema.")
+    torneo.estado = torneo.estado_previo
+    torneo.estado_previo = None
     db.commit()
     db.refresh(torneo)
     return torneo
@@ -58,14 +117,20 @@ def delete(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_
     torneo = db.query(Torneo).filter(Torneo.id == id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
-    # Borrar en orden para respetar FKs: eventos → partidos → fixtures → grupos → inscripciones → torneo
-    fixtures = db.query(Fixture).filter(Fixture.torneo_id == id).all()
-    for f in fixtures:
-        for p in f.partidos:
-            db.query(EventoPartido).filter(EventoPartido.partido_id == p.id).delete()
-            db.delete(p)
-        db.delete(f)
-    db.query(Grupo).filter(Grupo.torneo_id == id).delete()
-    db.query(Inscripcion).filter(Inscripcion.torneo_id == id).delete()
+    if torneo.estado in ("en_curso", "finalizado"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar un torneo en curso o finalizado.",
+        )
+    if db.query(Inscripcion).filter(Inscripcion.torneo_id == id).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar un torneo con inscripciones registradas",
+        )
+    if db.query(Fixture).filter(Fixture.torneo_id == id).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Elimina el fixture del torneo antes de borrarlo",
+        )
     db.delete(torneo)
     db.commit()

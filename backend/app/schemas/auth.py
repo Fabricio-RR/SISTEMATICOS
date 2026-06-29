@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -40,10 +40,10 @@ class SolicitudAccesoRequest(BaseModel):
     nombres: str
     apellidos: str
     correo: EmailStr
-    contrasena: str
-    nombre_institucion: str
-    ciudad: str
-    nivel: str | None = None
+    contrasena: str = Field(min_length=8)
+    nombre_institucion: str = Field(min_length=2, max_length=200)
+    ciudad: str = Field(min_length=2, max_length=100)
+    contacto: str | None = Field(default=None, max_length=200)
     categoria: str | None = None
     pregunta_seguridad_1: str
     respuesta_seguridad_1: str
@@ -51,3 +51,8 @@ class SolicitudAccesoRequest(BaseModel):
     respuesta_seguridad_2: str
     pregunta_seguridad_3: str
     respuesta_seguridad_3: str
+
+    @field_validator("nombre_institucion", "ciudad", "nombres", "apellidos", "contacto", mode="before")
+    @classmethod
+    def _trim(cls, v):
+        return v.strip() if isinstance(v, str) else v

@@ -1,46 +1,88 @@
-"""
-Configuración de pruebas — usa base de datos SQLite en memoria para aislar tests.
-"""
 import os
+import asyncio
+from collections.abc import Iterator
+
+import httpx
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
-# Usar SQLite en memoria para tests (no requiere MySQL)
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_olimpiadas.db")
-os.environ.setdefault("SECRET_KEY", "test_secret_key_para_pruebas")
-os.environ.setdefault("SMTP_USER", "")
-os.environ.setdefault("SMTP_PASSWORD", "")
+os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+# En pruebas el correo siempre va en modo consola: ningún test debe enviar
+# correos reales aunque el .env local tenga SMTP configurado.
+os.environ["EMAIL_ENABLED"] = "false"
 
-from app.database import Base, get_db
-from app.main import app
+import app.models  # noqa: E402,F401
+from app.database import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.core.limiter import limiter  # noqa: E402
 
-TEST_DB_URL = "sqlite:///./test_olimpiadas.db"
-engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
-TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# El límite de peticiones es estado global en memoria que se acumula entre tests
+# (no lo resetea reset_db). En pruebas hacemos muchos logins seguidos, así que lo
+# desactivamos para no chocar con el tope por minuto.
+limiter.enabled = False
+
+engine = create_engine(
+    "sqlite+pysqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Alias usado por algunos tests para abrir una sesión directa a la BD de pruebas.
+TestingSession = TestingSessionLocal
 
 
-def override_get_db():
-    db = TestingSession()
-    try:
-        yield db
-    finally:
-        db.close()
+class AppClient:
+    def __init__(self, app):
+        self._app = app
+
+    async def _request(self, method: str, path: str, **kwargs):
+        transport = httpx.ASGITransport(app=self._app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.request(method, path, **kwargs)
+
+    def request(self, method: str, path: str, **kwargs):
+        return asyncio.run(self._request(method, path, **kwargs))
+
+    def get(self, path: str, **kwargs):
+        return self.request("GET", path, **kwargs)
+
+    def post(self, path: str, **kwargs):
+        return self.request("POST", path, **kwargs)
+
+    def put(self, path: str, **kwargs):
+        return self.request("PUT", path, **kwargs)
+
+    def patch(self, path: str, **kwargs):
+        return self.request("PATCH", path, **kwargs)
+
+    def delete(self, path: str, **kwargs):
+        return self.request("DELETE", path, **kwargs)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_db():
+@pytest.fixture(autouse=True)
+def reset_db() -> Iterator[None]:
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
-    if os.path.exists("test_olimpiadas.db"):
-        os.remove("test_olimpiadas.db")
 
 
 @pytest.fixture
-def client():
+def db_session() -> Iterator[Session]:
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def client(db_session: Session) -> Iterator[AppClient]:
+    def override_get_db() -> Iterator[Session]:
+        yield db_session
+
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
-        yield c
+    yield AppClient(app)
     app.dependency_overrides.clear()

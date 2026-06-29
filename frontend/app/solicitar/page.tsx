@@ -2,16 +2,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle, GraduationCap } from "lucide-react";
+import { Trophy, User, Mail, Lock, MapPin, ShieldQuestion, Eye, EyeOff, CheckCircle, Phone } from "lucide-react";
 import { api } from "@/lib/api";
-
-const NIVELES = ["universidad", "colegio", "instituto"] as const;
-
-const CATEGORIAS: Record<string, string[]> = {
-  universidad: ["1° ciclo", "2° ciclo", "3° ciclo", "4° ciclo", "5° ciclo", "6° ciclo", "7° ciclo", "8° ciclo", "9° ciclo", "10° ciclo"],
-  colegio:     ["1°", "2°", "3°", "4°", "5°", "6°"],
-  instituto:   ["1°", "2°", "3°"],
-};
+import { useDuplicadosInstitucion } from "@/lib/useDuplicadosInstitucion";
+import { AvisoDuplicados } from "@/components/AvisoDuplicados";
+import { CATEGORIAS, CATEGORIA_PAIS, type CategoriaInstitucion } from "@/types/api";
 
 const PREGUNTAS = [
   "¿Cuál es el nombre de tu primera mascota?",
@@ -38,8 +33,8 @@ export default function SolicitarPage() {
     contrasena: "",
     nombre_institucion: "",
     ciudad: "",
-    nivel: "",
-    categoria: "",
+    contacto: "",
+    categoria: "" as CategoriaInstitucion | "",
     pregunta_seguridad_1: PREGUNTAS[0],
     respuesta_seguridad_1: "",
     pregunta_seguridad_2: PREGUNTAS[1],
@@ -52,12 +47,47 @@ export default function SolicitarPage() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  // Aviso en vivo si la institución ya parece estar registrada.
+  const { similares, exacto } = useDuplicadosInstitucion(form.nombre_institucion);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
+    if (form.nombres.length > 50) {
+      setError("Nombres no puede tener más de 50 caracteres");
+      return;
+    }
+    if (form.apellidos.length > 50) {
+      setError("Apellidos no puede tener más de 50 caracteres");
+      return;
+    }
+    if (form.correo.length > 150) {
+      setError("Correo electrónico no puede tener más de 150 caracteres");
+      return;
+    }
     if (form.contrasena.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (form.contrasena.length > 255) {
+      setError("La contraseña no puede tener más de 255 caracteres");
+      return;
+    }
+    if (form.nombre_institucion.length > 100) {
+      setError("Nombre de la institución no puede tener más de 100 caracteres");
+      return;
+    }
+    if (form.ciudad.length > 50) {
+      setError("Ciudad no puede tener más de 50 caracteres");
+      return;
+    }
+    if (form.contacto && form.contacto.length > 100) {
+      setError("Contacto no puede tener más de 100 caracteres");
+      return;
+    }
+    if (form.respuesta_seguridad_1.length > 100 || form.respuesta_seguridad_2.length > 100 || form.respuesta_seguridad_3.length > 100) {
+      setError("Las respuestas de seguridad no pueden tener más de 100 caracteres");
       return;
     }
     if (!form.respuesta_seguridad_1 || !form.respuesta_seguridad_2 || !form.respuesta_seguridad_3) {
@@ -73,12 +103,17 @@ export default function SolicitarPage() {
       return;
     }
 
+    if (exacto) {
+      setError(`Ya existe una institución registrada con ese nombre: «${exacto.nombre}». Si es la tuya, pide acceso al administrador.`);
+      return;
+    }
+
     setCargando(true);
     try {
-      await api.solicitar(form);
+      await api.solicitar({ ...form, categoria: form.categoria || undefined });
       setStep("success");
-    } catch (err: any) {
-      setError(err.message ?? "Error al enviar la solicitud");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al enviar la solicitud");
     } finally {
       setCargando(false);
     }
@@ -142,6 +177,7 @@ export default function SolicitarPage() {
                     type="text"
                     value={form.nombres}
                     onChange={(e) => set("nombres", e.target.value)}
+                    maxLength={50}
                     placeholder="Juan"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -154,6 +190,7 @@ export default function SolicitarPage() {
                   type="text"
                   value={form.apellidos}
                   onChange={(e) => set("apellidos", e.target.value)}
+                  maxLength={50}
                   placeholder="Pérez García"
                   required
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -173,6 +210,7 @@ export default function SolicitarPage() {
                 type="email"
                 value={form.correo}
                 onChange={(e) => set("correo", e.target.value)}
+                maxLength={150}
                 placeholder="contacto@institucion.pe"
                 required
                 className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -191,6 +229,7 @@ export default function SolicitarPage() {
                 type={mostrarPass ? "text" : "password"}
                 value={form.contrasena}
                 onChange={(e) => set("contrasena", e.target.value)}
+                maxLength={255}
                 placeholder="Mín. 8 caracteres"
                 required
                 className="w-full border border-gray-200 rounded-xl pl-9 pr-10 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -208,17 +247,28 @@ export default function SolicitarPage() {
           {/* Institución */}
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Datos de la institución</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
                 <label className="block text-xs font-bold text-gray-500 mb-1">Nombre de la institución</label>
                 <input
                   type="text"
                   value={form.nombre_institucion}
                   onChange={(e) => set("nombre_institucion", e.target.value)}
+                  maxLength={100}
                   placeholder="Universidad Nacional..."
                   required
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
+                {similares.length > 0 && (
+                  <div className="mt-2">
+                    <AvisoDuplicados similares={similares} />
+                    {exacto && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Si esta institución es la tuya, pide acceso al administrador en lugar de registrarla de nuevo.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1">Ciudad</label>
@@ -228,42 +278,45 @@ export default function SolicitarPage() {
                     type="text"
                     value={form.ciudad}
                     onChange={(e) => set("ciudad", e.target.value)}
+                    maxLength={50}
                     placeholder="Lima"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">
-                  <GraduationCap className="w-3.5 h-3.5 inline mr-1" />Nivel educativo
-                </label>
-                <select
-                  value={form.nivel}
-                  onChange={(e) => { set("nivel", e.target.value); set("categoria", ""); }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                  <option value="">— Selecciona —</option>
-                  {NIVELES.map(n => (
-                    <option key={n} value={n} className="capitalize">{n.charAt(0).toUpperCase() + n.slice(1)}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Contacto (teléfono o correo)</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={form.contacto}
+                    onChange={(e) => set("contacto", e.target.value)}
+                    maxLength={100}
+                    placeholder="999-888-777"
+                    className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">Categoría / Ciclo</label>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-gray-500 mb-1">Categoría (año escolar)</label>
                 <select
                   value={form.categoria}
                   onChange={(e) => set("categoria", e.target.value)}
-                  disabled={!form.nivel}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                  required
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                  <option value="">— Selecciona —</option>
-                  {(CATEGORIAS[form.nivel] ?? []).map(c => (
-                    <option key={c} value={c}>{c}</option>
+                  <option value="">Seleccionar categoría...</option>
+                  {CATEGORIAS.map((c) => (
+                    <option key={c} value={c}>{c} — {CATEGORIA_PAIS[c]}</option>
                   ))}
                 </select>
+                {form.categoria && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    País representativo asignado automáticamente: <span className="font-semibold text-gray-600">{CATEGORIA_PAIS[form.categoria as CategoriaInstitucion]}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -304,6 +357,7 @@ export default function SolicitarPage() {
                     type="text"
                     value={form[respKey]}
                     onChange={(e) => set(respKey, e.target.value)}
+                    maxLength={100}
                     placeholder="Tu respuesta..."
                     required
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500"

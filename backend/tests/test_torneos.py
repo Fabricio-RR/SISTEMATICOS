@@ -82,7 +82,9 @@ def test_obtener_torneo_por_id(client):
     assert res.json()["id"] == torneo_id
 
 
-def test_actualizar_torneo(client):
+def test_suspender_reactivar_torneo(client):
+    """La API gestiona el ciclo de vida del torneo por transiciones de estado
+    (suspender / reactivar), no por edición libre de campos."""
     token = _admin_token(client)
     deporte_id = _crear_deporte(client, token, "Vóley Test")
     create_res = client.post("/api/torneos/", json={
@@ -91,11 +93,17 @@ def test_actualizar_torneo(client):
         "deporte_id": deporte_id,
     }, headers={"Authorization": f"Bearer {token}"})
     torneo_id = create_res.json()["id"]
+    estado_inicial = create_res.json()["estado"]
 
-    res = client.put(f"/api/torneos/{torneo_id}", json={"nombre": "Torneo Actualizado"},
-                     headers={"Authorization": f"Bearer {token}"})
-    assert res.status_code == 200
-    assert res.json()["nombre"] == "Torneo Actualizado"
+    susp = client.patch(f"/api/torneos/{torneo_id}/suspender",
+                        headers={"Authorization": f"Bearer {token}"})
+    assert susp.status_code == 200
+    assert susp.json()["estado"] == "suspendido"
+
+    react = client.patch(f"/api/torneos/{torneo_id}/reactivar",
+                         headers={"Authorization": f"Bearer {token}"})
+    assert react.status_code == 200
+    assert react.json()["estado"] == estado_inicial
 
 
 def test_eliminar_torneo(client):

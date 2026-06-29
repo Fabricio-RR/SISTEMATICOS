@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta
+import hashlib
+import hmac
+import secrets
 import bcrypt
 from jose import JWTError, jwt
 
@@ -25,3 +28,16 @@ def decode_token(token: str) -> dict | None:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except JWTError:
         return None
+
+
+def create_refresh_token() -> tuple[str, str]:
+    raw = secrets.token_urlsafe(48)
+    return raw, hash_refresh_token(raw)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_refresh_token(raw: str, token_hash: str) -> bool:
+    return hmac.compare_digest(hash_refresh_token(raw), token_hash)

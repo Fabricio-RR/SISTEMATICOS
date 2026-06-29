@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, DateTime
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 
@@ -7,6 +7,24 @@ from app.database import Base
 
 class Partido(Base):
     __tablename__ = "partidos"
+    __table_args__ = (
+        CheckConstraint(
+            "inscripcion_local_id <> inscripcion_visitante_id",
+            name="ck_partido_equipos_distintos",
+        ),
+        CheckConstraint(
+            "estado IN ('programado', 'en_curso', 'finalizado')",
+            name="ck_partido_estado",
+        ),
+        CheckConstraint(
+            "resultado_local IS NULL OR resultado_local >= 0",
+            name="ck_partido_resultado_local_positivo",
+        ),
+        CheckConstraint(
+            "resultado_visitante IS NULL OR resultado_visitante >= 0",
+            name="ck_partido_resultado_visitante_positivo",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     fixture_id: Mapped[int] = mapped_column(Integer, ForeignKey("fixture.id"))
@@ -20,6 +38,9 @@ class Partido(Base):
     resultado_local: Mapped[int | None] = mapped_column(Integer, nullable=True)
     resultado_visitante: Mapped[int | None] = mapped_column(Integer, nullable=True)
     estado: Mapped[str] = mapped_column(String(30), default="programado")  # programado, en_curso, finalizado
+    es_walkover: Mapped[bool] = mapped_column(Boolean, default=False)
+    motivo_reprogramacion: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reprogramado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     fixture: Mapped["Fixture"] = relationship("Fixture", back_populates="partidos")
     local: Mapped["Inscripcion"] = relationship(

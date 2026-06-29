@@ -26,14 +26,18 @@ export default function RecoveryPage() {
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (correo.length > 150) {
+      setError("El correo no puede tener más de 150 caracteres.");
+      return;
+    }
     setError("");
     setCargando(true);
     try {
       const data = await api.recoveryQuestions(correo);
       setQuestions(data);
       setStep("questions");
-    } catch (err: any) {
-      setError(err.message ?? "No se encontró la cuenta");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se encontró la cuenta");
     } finally {
       setCargando(false);
     }
@@ -42,8 +46,16 @@ export default function RecoveryPage() {
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (respuestas.r1.length > 100 || respuestas.r2.length > 100 || respuestas.r3.length > 100) {
+      setError("Las respuestas de seguridad no pueden tener más de 100 caracteres");
+      return;
+    }
     if (nuevaContrasena.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (nuevaContrasena.length > 255) {
+      setError("La contraseña no puede tener más de 255 caracteres");
       return;
     }
     setCargando(true);
@@ -56,8 +68,8 @@ export default function RecoveryPage() {
         nueva_contrasena: nuevaContrasena,
       });
       setStep("success");
-    } catch (err: any) {
-      setError(err.message ?? "Las respuestas son incorrectas");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Las respuestas son incorrectas");
     } finally {
       setCargando(false);
     }
@@ -101,6 +113,7 @@ export default function RecoveryPage() {
                     type="email"
                     value={correo}
                     onChange={(e) => setCorreo(e.target.value)}
+                    maxLength={150}
                     placeholder="ejemplo@institucion.pe"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition"
@@ -144,6 +157,7 @@ export default function RecoveryPage() {
                     type="text"
                     value={respuestas[key]}
                     onChange={(e) => setRespuestas({ ...respuestas, [key]: e.target.value })}
+                    maxLength={100}
                     placeholder="Tu respuesta"
                     required
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition"
@@ -161,6 +175,7 @@ export default function RecoveryPage() {
                     type="password"
                     value={nuevaContrasena}
                     onChange={(e) => setNuevaContrasena(e.target.value)}
+                    maxLength={255}
                     placeholder="Mínimo 8 caracteres"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition"

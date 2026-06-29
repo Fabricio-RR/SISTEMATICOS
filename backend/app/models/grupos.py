@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey
+from sqlalchemy import String, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -6,6 +6,9 @@ from app.database import Base
 
 class Grupo(Base):
     __tablename__ = "grupos"
+    __table_args__ = (
+        UniqueConstraint("torneo_id", "nombre_grupo", name="uq_grupo_torneo_nombre"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     torneo_id: Mapped[int] = mapped_column(Integer, ForeignKey("torneos.id"))

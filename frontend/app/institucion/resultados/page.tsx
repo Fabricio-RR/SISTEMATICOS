@@ -1,187 +1,167 @@
 "use client";
-import { useEffect, useState } from "react";
-import { BarChart3, Trophy, Target } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { BarChart3, Filter, Trophy, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import type { Torneo, PosicionTabla, Goleador } from "@/types/api";
 
-type SportCfg = { anotadoresLabel: string; unitLabel: string };
-
-const SPORT_CFG: Record<string, SportCfg> = {
-  futbol:   { anotadoresLabel: "Goleadores",   unitLabel: "goles"    },
-  basket:   { anotadoresLabel: "Encestadores", unitLabel: "encestes" },
-  voley:    { anotadoresLabel: "Anotadores",   unitLabel: "puntos"   },
-  pingpong: { anotadoresLabel: "Anotadores",   unitLabel: "puntos"   },
-  default:  { anotadoresLabel: "Anotadores",   unitLabel: "puntos"   },
-};
-
-function getSportCfg(deporteNombre: string): SportCfg {
-  const n = deporteNombre.toLowerCase();
-  if (n.includes("fútbol") || n.includes("futbol") || n.includes("soccer")) return SPORT_CFG.futbol;
-  if (n.includes("básquet") || n.includes("basquet") || n.includes("basket")) return SPORT_CFG.basket;
-  if (n.includes("vóley") || n.includes("voley") || n.includes("voleibol")) return SPORT_CFG.voley;
-  if (n.includes("ping") || n.includes("tenis de mesa")) return SPORT_CFG.pingpong;
-  return SPORT_CFG.default;
-}
-
-export default function InstitucionResultados() {
-  const [torneos, setTorneos] = useState<any[]>([]);
-  const [deportes, setDeportes] = useState<any[]>([]);
+export default function InstitucionResultadosPage() {
+  const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<number | null>(null);
-  const [posiciones, setPosiciones] = useState<any[]>([]);
-  const [goleadores, setGoleadores] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [tabla, setTabla] = useState<PosicionTabla[]>([]);
+  const [goleadores, setGoleadores] = useState<Goleador[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([api.getTorneos(), api.getDeportes()])
-      .then(([t, d]) => { setTorneos(t); setDeportes(d); })
-      .catch(() => {});
+    api.getTorneos().then(setTorneos).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!torneoId) { setPosiciones([]); setGoleadores([]); return; }
-    setLoading(true);
-    Promise.all([
-      api.getPosiciones(torneoId),
-      api.getGoleadores(torneoId),
-    ]).then(([pos, gol]) => {
-      setPosiciones(pos);
-      setGoleadores(gol);
-    }).finally(() => setLoading(false));
-  }, [torneoId]);
+  const cargar = useCallback(async (id: number) => {
+    setCargando(true);
+    setError("");
+    try {
+      const [t, g] = await Promise.all([api.getTabla(id), api.getGoleadores(id)]);
+      setTabla(t);
+      setGoleadores(g);
+    } catch {
+      setError("No se pudieron cargar las estadísticas.");
+    } finally {
+      setCargando(false);
+    }
+  }, []);
 
-  const torneoActual = torneos.find(t => t.id === torneoId);
-  const deporteActual = deportes.find(d => d.id === torneoActual?.deporte_id);
-  const sportCfg = deporteActual ? getSportCfg(deporteActual.nombre) : SPORT_CFG.default;
+  function handleTorneo(id: number) {
+    setTorneoId(id);
+    setTabla([]);
+    setGoleadores([]);
+    if (id) cargar(id);
+  }
 
   return (
-    <div>
-      <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">Portal Institucional</p>
-        <h1 className="text-4xl font-black text-gray-900 mt-1">
-          Resultados y <span className="text-red-600">Estadísticas</span>
-        </h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Portal institucional</p>
+        <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Estadísticas</h1>
+        <p className="text-sm text-slate-400 mt-0.5">Tabla de posiciones y goleadores por torneo.</p>
       </div>
 
       {/* Selector */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm mb-6">
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Seleccionar Torneo</label>
+      <div className="relative w-fit">
+        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <select
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           value={torneoId ?? ""}
-          onChange={e => setTorneoId(Number(e.target.value) || null)}
+          onChange={(e) => handleTorneo(Number(e.target.value))}
+          className="pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
         >
-          <option value="">— Elige un torneo —</option>
-          {torneos.map(t => (
-            <option key={t.id} value={t.id}>{t.nombre} ({t.temporada})</option>
+          <option value="">Seleccionar torneo</option>
+          {torneos.map((t) => (
+            <option key={t.id} value={t.id}>{t.nombre} — {t.temporada}</option>
           ))}
         </select>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Cargando...</p>}
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
 
-      {torneoId && !loading && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {!torneoId ? (
+        <div className="flex flex-col items-center justify-center h-48 text-slate-300">
+          <BarChart3 className="w-10 h-10 mb-3" strokeWidth={1.5} />
+          <p className="text-sm text-slate-400">Selecciona un torneo para ver las estadísticas</p>
+        </div>
+      ) : cargando ? (
+        <div className="flex items-center justify-center h-48 text-sm text-slate-400">Cargando...</div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Tabla de posiciones */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-red-600" />
-              <h2 className="font-black text-gray-900">Tabla de Posiciones</h2>
-            </div>
-            {posiciones.length === 0 ? (
-              <p className="px-6 py-8 text-center text-gray-400 text-sm">
-                Sin datos aún — los partidos deben completarse primero
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-7 text-xs font-bold text-gray-400 uppercase tracking-wider px-6 py-3 border-b border-gray-50">
-                  <span className="col-span-3">Equipo</span>
-                  <span className="text-center">PJ</span>
-                  <span className="text-center">PG</span>
-                  <span className="text-center">PP</span>
-                  <span className="text-center font-black text-gray-700">PTS</span>
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">Tabla de posiciones</h2>
+                <span className="text-xs text-slate-400">{tabla.length} equipos</span>
+              </div>
+              {tabla.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-sm text-slate-400">
+                  Sin equipos aprobados en este torneo
                 </div>
-                {posiciones.map(t => (
-                  <div
-                    key={t.equipo_id}
-                    className={`grid grid-cols-7 items-center px-6 py-3 border-b border-gray-50 last:border-0 ${
-                      t.posicion === 1 ? "bg-red-50/30" : ""
-                    }`}
-                  >
-                    <div className="col-span-3 flex items-center gap-3">
-                      <span className={`text-sm font-black w-6 ${t.posicion === 1 ? "text-red-600" : t.posicion <= 4 ? "text-gray-600" : "text-gray-300"}`}>
-                        {t.posicion}
-                      </span>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 leading-tight">{t.nombre_equipo}</p>
-                        <p className="text-xs text-gray-400">
-                          {t.pais_emoji} {t.pais || t.grupo}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-center text-sm text-gray-600">{t.pj}</span>
-                    <span className="text-center text-sm text-gray-600">{t.pg}</span>
-                    <span className="text-center text-sm text-gray-600">{t.pp}</span>
-                    <span className={`text-center text-sm font-black ${t.posicion === 1 ? "text-red-600" : "text-gray-900"}`}>
-                      {t.puntos}
-                    </span>
-                  </div>
-                ))}
-              </>
-            )}
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      {["Pos", "Equipo", "PJ", "G", "E", "P", "GF", "GC", "DIF", "PTS"].map((h) => (
+                        <th
+                          key={h}
+                          className={`py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider ${h === "Equipo" ? "text-left px-4" : "text-center px-3"}`}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {tabla.map((fila) => (
+                      <tr key={fila.equipo_id} className="hover:bg-slate-50 transition-colors">
+                        <td className="text-center px-3 py-3">
+                          {fila.posicion === 1
+                            ? <Trophy className="w-4 h-4 text-yellow-500 mx-auto" />
+                            : <span className="text-sm font-semibold text-slate-400">{fila.posicion}</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-900">{fila.nombre_equipo}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_jugados}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_ganados}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_empatados}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.partidos_perdidos}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.goles_a_favor}</td>
+                        <td className="text-center px-3 py-3 text-sm text-slate-600">{fila.goles_en_contra}</td>
+                        <td className="text-center px-3 py-3 text-sm font-semibold text-slate-700">
+                          {fila.diferencia_goles > 0 ? `+${fila.diferencia_goles}` : fila.diferencia_goles}
+                        </td>
+                        <td className="text-center px-3 py-3">
+                          <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg">{fila.puntos}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
-          {/* Anotadores */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-2">
-                <Target className="w-5 h-5 text-red-600" />
-                <h2 className="font-black text-gray-900">{sportCfg.anotadoresLabel}</h2>
+          {/* Líderes individuales */}
+          <div>
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-50">
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {goleadores[0]?.etiqueta === "Puntos" ? "Anotadores" : "Goleadores"}
+                </h2>
               </div>
               {goleadores.length === 0 ? (
-                <p className="px-6 py-8 text-center text-gray-400 text-sm">Sin anotaciones registradas aún</p>
+                <div className="flex items-center justify-center h-32 text-sm text-slate-400 px-4 text-center">
+                  Sin estadísticas individuales aún
+                </div>
               ) : (
-                <div>
-                  {goleadores.map(g => (
-                    <div key={g.atleta_id} className="flex items-center justify-between px-6 py-4 border-b border-gray-50 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-sm font-black w-6 ${g.posicion === 1 ? "text-red-600" : "text-gray-400"}`}>
-                          {g.posicion}
-                        </span>
-                        <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center font-black text-gray-500 text-xs">
-                          {g.nombre?.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{g.nombre}</p>
-                          <p className="text-xs text-gray-400">{g.equipo}</p>
+                <div className="divide-y divide-slate-50">
+                  {goleadores.map((g) => (
+                    <div key={g.atleta_id} className="px-5 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-sm font-semibold text-slate-300 w-5 shrink-0 text-right">{g.posicion}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{g.nombre_completo}</p>
+                          <p className="text-xs text-slate-400 truncate">{g.nombre_equipo}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className={`text-2xl font-black ${g.posicion === 1 ? "text-red-600" : "text-gray-900"}`}>
-                          {g.goles}
-                        </span>
-                        <span className="text-xs text-gray-400">{sportCfg.unitLabel}</span>
+                      <div className="text-right shrink-0 ml-2">
+                        <p className="text-sm font-bold text-red-600">{g.goles}</p>
+                        <p className="text-[10px] text-slate-400">{g.etiqueta.toLowerCase()}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Leyenda */}
-            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Trophy className="w-3.5 h-3.5" /> Leyenda
-              </p>
-              {[
-                ["PJ", "Partidos Jugados"],
-                ["PG", "Partidos Ganados"],
-                ["PP", "Partidos Perdidos"],
-                ["PTS", "Puntos (3 ganado, 1 empate, 0 derrota)"],
-              ].map(([key, desc]) => (
-                <div key={key} className="flex items-center gap-3 py-1">
-                  <span className="text-xs font-black text-gray-700 w-8">{key}</span>
-                  <span className="text-xs text-gray-400">{desc}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>

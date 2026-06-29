@@ -16,36 +16,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  backend:
-    build: ./backend
-    container_name: olimpiadas_backend
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: olimpiadas_phpmyadmin
-    restart: unless-stopped
-    environment:
-      PMA_HOST: db
-      PMA_USER: ${MYSQL_USER}
-      PMA_PASSWORD: ${MYSQL_PASSWORD}
-      UPLOAD_LIMIT: 50M
-    ports:
-      - "8080:80"
-    depends_on:
-      db:
-        condition: service_healthy
+      retries: 10
+      start_period: 30s
 
 volumes:
   mysql_data:

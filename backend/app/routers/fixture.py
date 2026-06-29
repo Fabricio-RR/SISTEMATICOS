@@ -1,288 +1,290 @@
-"""
-Router de Fixture y Sorteo.
-
-Lógica del torneo:
-- Fase de grupos: los equipos se dividen en grupos de 4.
-  Dentro del grupo todos juegan contra todos (round-robin).
-- Fase eliminatoria: cuartos de final, semifinales y final.
-  Se genera automáticamente después de cerrar la fase de grupos.
-"""
-import random
-from math import ceil
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.inscripciones import Inscripcion
-from app.models.torneos import Torneo
-from app.models.grupos import Grupo
 from app.models.fixture import Fixture
 from app.models.partidos import Partido
-from app.models.eventos_partido import EventoPartido
-from app.models.usuarios import Usuario
+from app.models.inscripciones import Inscripcion
+from app.models.torneos import Torneo
+from app.schemas.fixture import FixtureOut, GenerarFixtureRequest, FaseEliminatoriaRequest, SiguienteFaseRequest
+from app.schemas.partidos import PartidoOut
 from app.core.deps import require_admin
+from app.models.usuarios import Usuario
+from app.services.competition import (
+    collect_winners,
+    elimination_phase_name_from_size,
+    next_elimination_phase_name,
+    recalculate_atleta_stats,
+)
+from app.models.eventos_partido import EventoPartido
+from app.models.notificaciones import Notificacion
 
 router = APIRouter()
 
 
-# ── Schemas de respuesta inline ───────────────────────────────────────────────
-
-def _partido_out(p: Partido) -> dict:
-    local = p.local.club_equipo if p.local else None
-    visitante = p.visitante.club_equipo if p.visitante else None
-    return {
-        "id": p.id,
-        "fixture_id": p.fixture_id,
-        "ronda": p.ronda,
-        "estado": p.estado,
-        "fecha_hora": p.fecha_hora.isoformat() if p.fecha_hora else None,
-        "sede_id": p.sede_id,
-        "resultado_local": p.resultado_local,
-        "resultado_visitante": p.resultado_visitante,
-        "local": {"id": local.id, "nombre": local.nombre_equipo, "pais": local.pais_asignado, "pais_emoji": local.pais_emoji} if local else None,
-        "visitante": {"id": visitante.id, "nombre": visitante.nombre_equipo, "pais": visitante.pais_asignado, "pais_emoji": visitante.pais_emoji} if visitante else None,
-    }
-
-
-def _fixture_out(f: Fixture) -> dict:
-    return {
-        "id": f.id,
-        "torneo_id": f.torneo_id,
-        "jornada": f.jornada,
-        "nombre_fase": f.nombre_fase,
-        "estado": f.estado,
-        "fecha_generacion": f.fecha_generacion.isoformat(),
-        "partidos": [_partido_out(p) for p in f.partidos],
-    }
+def _round_robin(teams: list) -> list[list[tuple]]:
+    """Genera jornadas round-robin. Retorna lista de jornadas, cada jornada con pares (local, visitante)."""
+    if len(teams) % 2:
+        teams = teams + [None]
+    n = len(teams)
+    rounds = []
+    teams = list(teams)
+    for _ in range(n - 1):
+        pares = []
+        for i in range(n // 2):
+            home = teams[i]
+            away = teams[n - 1 - i]
+            if home is not None and away is not None:
+                pares.append((home, away))
+        rounds.append(pares)
+        teams.insert(1, teams.pop())
+    return rounds
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
-@router.get("/torneo/{torneo_id}")
-def get_fixture(torneo_id: int, db: Session = Depends(get_db)):
-    """Devuelve todos los fixtures (jornadas) de un torneo con sus partidos."""
-    fixtures = (
-        db.query(Fixture)
-        .options(
-            joinedload(Fixture.partidos).joinedload(Partido.local).joinedload(Inscripcion.club_equipo),
-            joinedload(Fixture.partidos).joinedload(Partido.visitante).joinedload(Inscripcion.club_equipo),
-        )
-        .filter(Fixture.torneo_id == torneo_id, Fixture.estado == "activo")
-        .order_by(Fixture.jornada)
-        .all()
-    )
-    return [_fixture_out(f) for f in fixtures]
+def _build_partido_out(p: Partido) -> PartidoOut:
+    out = PartidoOut.model_validate(p)
+    if p.local and p.local.club_equipo:
+        out.local_nombre = p.local.club_equipo.nombre_equipo
+    if p.visitante and p.visitante.club_equipo:
+        out.visitante_nombre = p.visitante.club_equipo.nombre_equipo
+    if p.fixture and p.fixture.torneo:
+        out.torneo_nombre = p.fixture.torneo.nombre
+        out.jornada = p.fixture.jornada
+    return out
 
 
-@router.post("/sorteo/{torneo_id}", status_code=status.HTTP_201_CREATED)
-def generar_sorteo(torneo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    """
-    Genera el sorteo aleatorio de grupos y la fase de grupos (round-robin).
-    Solo se puede ejecutar si no hay fixtures activos previos.
-    """
-    torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
+@router.get("/", response_model=list[FixtureOut])
+def get_all(torneo_id: int | None = None, db: Session = Depends(get_db)):
+    q = db.query(Fixture)
+    if torneo_id:
+        q = q.filter(Fixture.torneo_id == torneo_id)
+    return q.order_by(Fixture.torneo_id, Fixture.jornada).all()
+
+
+@router.post("/generar", response_model=list[FixtureOut], status_code=status.HTTP_201_CREATED)
+def generar(data: GenerarFixtureRequest, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    torneo = db.query(Torneo).filter(Torneo.id == data.torneo_id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado != "en_sorteo":
+        raise HTTPException(
+            status_code=400,
+            detail=f"El fixture solo puede generarse cuando el torneo está en estado 'en_sorteo'. Estado actual: '{torneo.estado}'.",
+        )
+    if torneo.formato == "eliminacion_simple":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Los torneos de eliminación simple no usan fixture de liga. Usa la generación de fase eliminatoria.",
+        )
 
-    # Verificar que no haya fixtures ya generados
-    ya_generado = db.query(Fixture).filter(Fixture.torneo_id == torneo_id, Fixture.estado == "activo").first()
-    if ya_generado:
-        raise HTTPException(status_code=400, detail="Ya existe un fixture generado para este torneo. Elimínalo antes de regenerar.")
+    inscripciones = db.query(Inscripcion).filter(
+        Inscripcion.torneo_id == data.torneo_id,
+        Inscripcion.estado == "aprobado",
+    ).all()
 
-    # Obtener inscripciones aprobadas
-    inscripciones = (
-        db.query(Inscripcion)
-        .filter(Inscripcion.torneo_id == torneo_id, Inscripcion.estado == "aprobado")
-        .all()
-    )
     if len(inscripciones) < 2:
-        raise HTTPException(status_code=400, detail="Se necesitan al menos 2 equipos inscritos y aprobados para generar el sorteo")
+        raise HTTPException(status_code=400, detail="Se necesitan al menos 2 equipos aprobados para generar el fixture")
 
-    # Mezclar aleatoriamente
-    random.shuffle(inscripciones)
-
-    # Dividir en grupos de 4 (o menos si no alcanza)
-    tamanio_grupo = 4
-    num_grupos = ceil(len(inscripciones) / tamanio_grupo)
-
-    grupos_db = []
-    nombres_grupos = "ABCDEFGHIJKLMNOP"
-    for i in range(num_grupos):
-        g = Grupo(torneo_id=torneo_id, nombre_grupo=f"Grupo {nombres_grupos[i]}", orden=i + 1)
-        db.add(g)
-        db.flush()
-        grupos_db.append(g)
-
-    # Asignar inscripciones a grupos con seeding
-    for idx, insc in enumerate(inscripciones):
-        grupo = grupos_db[idx % num_grupos]
-        insc.grupo_id = grupo.id
-        insc.numero_seeding = idx + 1
-
-    db.flush()
-
-    # Generar partidos round-robin dentro de cada grupo
-    jornada = 1
-    partidos_creados = 0
-
-    for grupo in grupos_db:
-        miembros = [i for i in inscripciones if i.grupo_id == grupo.id]
-        fixture = Fixture(
-            torneo_id=torneo_id,
-            jornada=jornada,
-            nombre_fase=f"Fase de Grupos — {grupo.nombre_grupo}",
-            fecha_generacion=datetime.utcnow(),
-            estado="activo",
+    fixtures_existentes = db.query(Fixture).filter(Fixture.torneo_id == data.torneo_id).count()
+    if fixtures_existentes > 0 and not data.force:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya existe un fixture con {fixtures_existentes} jornadas. Envía force=true para regenerarlo.",
         )
-        db.add(fixture)
-        db.flush()
 
-        # Round-robin: todos contra todos dentro del grupo
-        for i in range(len(miembros)):
-            for j in range(i + 1, len(miembros)):
-                partido = Partido(
-                    fixture_id=fixture.id,
-                    inscripcion_local_id=miembros[i].id,
-                    inscripcion_visitante_id=miembros[j].id,
-                    grupo_id=grupo.id,
-                    ronda="Fase de Grupos",
-                    estado="programado",
-                )
-                db.add(partido)
-                partidos_creados += 1
-        jornada += 1
+    fixture_ids = [f.id for f in db.query(Fixture.id).filter(Fixture.torneo_id == data.torneo_id).all()]
+    if fixture_ids:
+        partido_ids = [p.id for p in db.query(Partido.id).filter(Partido.fixture_id.in_(fixture_ids)).all()]
+        if partido_ids:
+            atleta_ids_a_resetear = [
+                row[0]
+                for row in db.query(EventoPartido.atleta_jugador_id)
+                .filter(EventoPartido.partido_id.in_(partido_ids), EventoPartido.atleta_jugador_id.isnot(None))
+                .distinct()
+                .all()
+            ]
+            db.query(EventoPartido).filter(EventoPartido.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Notificacion).filter(Notificacion.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Partido).filter(Partido.id.in_(partido_ids)).delete(synchronize_session=False)
+            db.flush()
+            recalculate_atleta_stats(db, atleta_ids_a_resetear)
+        db.query(Fixture).filter(Fixture.id.in_(fixture_ids)).delete(synchronize_session=False)
 
-    # Actualizar estado del torneo
-    torneo.estado = "en_sorteo"
-    db.commit()
+    db.query(Inscripcion).filter(Inscripcion.torneo_id == data.torneo_id).update({
+        Inscripcion.puntos: 0,
+        Inscripcion.partidos_jugados: 0,
+        Inscripcion.partidos_ganados: 0,
+        Inscripcion.partidos_empatados: 0,
+        Inscripcion.partidos_perdidos: 0,
+        Inscripcion.goles_a_favor: 0,
+        Inscripcion.goles_en_contra: 0,
+    }, synchronize_session=False)
 
-    return {
-        "message": "Sorteo generado exitosamente",
-        "grupos": num_grupos,
-        "equipos": len(inscripciones),
-        "partidos_creados": partidos_creados,
-    }
+    jornadas = _round_robin([i.id for i in inscripciones])
+    fixtures_creados = []
 
-
-@router.post("/eliminatoria/{torneo_id}", status_code=status.HTTP_201_CREATED)
-def generar_eliminatoria(torneo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    """
-    Genera la fase eliminatoria (cuartos, semis, final) con los primeros
-    clasificados de cada grupo. Se llama después de cerrar la fase de grupos.
-    """
-    torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
-    if not torneo:
-        raise HTTPException(status_code=404, detail="Torneo no encontrado")
-
-    # Obtener el mejor de cada grupo (por puntos DESC)
-    grupos = db.query(Grupo).filter(Grupo.torneo_id == torneo_id).all()
-    if not grupos:
-        raise HTTPException(status_code=400, detail="No hay grupos generados")
-
-    clasificados = []
-    for grupo in grupos:
-        miembros = db.query(Inscripcion).filter(
-            Inscripcion.grupo_id == grupo.id,
-            Inscripcion.estado == "aprobado",
-        ).all()
-
-        def _puntos_en_torneo(insc: Inscripcion) -> int:
-            pts = 0
-            partidos = db.query(Partido).filter(
-                Partido.estado == "finalizado",
-                Partido.grupo_id == grupo.id,
-            ).all()
-            for p in partidos:
-                if p.resultado_local is None or p.resultado_visitante is None:
-                    continue
-                es_local = p.inscripcion_local_id == insc.id
-                es_visitante = p.inscripcion_visitante_id == insc.id
-                if not es_local and not es_visitante:
-                    continue
-                rl, rv = p.resultado_local, p.resultado_visitante
-                if (es_local and rl > rv) or (es_visitante and rv > rl):
-                    pts += 3
-                elif rl == rv:
-                    pts += 1
-            return pts
-
-        miembros.sort(key=_puntos_en_torneo, reverse=True)
-        clasificados.extend(miembros[:2])
-
-    if len(clasificados) < 2:
-        raise HTTPException(status_code=400, detail="No hay suficientes clasificados para la fase eliminatoria")
-
-    random.shuffle(clasificados)
-
-    fases = []
-    if len(clasificados) >= 8:
-        fases = [("Cuartos de Final", 8), ("Semifinal", 4), ("Final", 2)]
-    elif len(clasificados) >= 4:
-        fases = [("Semifinal", 4), ("Final", 2)]
-    else:
-        fases = [("Final", 2)]
-
-    jornada_base = db.query(Fixture).filter(Fixture.torneo_id == torneo_id).count() + 1
-    equipos_fase = clasificados[:fases[0][1]]
-    partidos_creados = 0
-
-    for nombre_fase, _ in fases:
-        fixture = Fixture(
-            torneo_id=torneo_id,
-            jornada=jornada_base,
-            nombre_fase=nombre_fase,
-            fecha_generacion=datetime.utcnow(),
-            estado="activo",
+    for num_jornada, pares in enumerate(jornadas, start=1):
+        fix = Fixture(
+            torneo_id=data.torneo_id,
+            jornada=num_jornada,
+            nombre_fase=f"Jornada {num_jornada}",
         )
-        db.add(fixture)
+        db.add(fix)
         db.flush()
 
-        for i in range(0, len(equipos_fase) - 1, 2):
+        for local_id, visitante_id in pares:
             partido = Partido(
-                fixture_id=fixture.id,
-                inscripcion_local_id=equipos_fase[i].id,
-                inscripcion_visitante_id=equipos_fase[i + 1].id,
-                ronda=nombre_fase,
-                estado="programado",
+                fixture_id=fix.id,
+                inscripcion_local_id=local_id,
+                inscripcion_visitante_id=visitante_id,
+                ronda=f"Jornada {num_jornada}",
             )
             db.add(partido)
-            partidos_creados += 1
 
-        # La siguiente fase tendrá la mitad de equipos (placeholders se completan al ingresar resultados)
-        equipos_fase = equipos_fase[:len(equipos_fase) // 2]
-        jornada_base += 1
+        fixtures_creados.append(fix)
 
-    torneo.estado = "en_curso"
     db.commit()
-
-    return {
-        "message": "Fase eliminatoria generada",
-        "fases": [f[0] for f in fases],
-        "partidos_creados": partidos_creados,
-    }
+    return fixtures_creados
 
 
-@router.delete("/torneo/{torneo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_fixture(torneo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    """Elimina todos los fixtures y partidos de un torneo (para regenerar sorteo)."""
-    fixtures = db.query(Fixture).filter(Fixture.torneo_id == torneo_id).all()
-    for f in fixtures:
-        for p in f.partidos:
-            db.query(EventoPartido).filter(EventoPartido.partido_id == p.id).delete()
-            db.delete(p)
-        db.delete(f)
-    # Limpiar grupos y seeding de inscripciones
-    grupos = db.query(Grupo).filter(Grupo.torneo_id == torneo_id).all()
-    for g in grupos:
-        db.delete(g)
-    inscripciones = db.query(Inscripcion).filter(Inscripcion.torneo_id == torneo_id).all()
-    for i in inscripciones:
-        i.grupo_id = None
-        i.numero_seeding = None
-    # Resetear estado del torneo
-    torneo = db.query(Torneo).filter(Torneo.id == torneo_id).first()
-    if torneo:
-        torneo.estado = "inscripciones"
+@router.post("/fase-eliminatoria", response_model=FixtureOut, status_code=status.HTTP_201_CREATED)
+def generar_fase_eliminatoria(
+    data: FaseEliminatoriaRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
+    torneo = db.query(Torneo).filter(Torneo.id == data.torneo_id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+    if torneo.estado != "en_curso":
+        raise HTTPException(status_code=400, detail="La fase eliminatoria solo puede generarse con el torneo 'en_curso'")
+    if data.n_clasificados not in (2, 4, 8):
+        raise HTTPException(status_code=400, detail="n_clasificados debe ser 2, 4 u 8")
+    if db.query(Fixture).filter(
+        Fixture.torneo_id == data.torneo_id,
+        Fixture.nombre_fase.in_(("Cuartos de Final", "Semifinales", "Final")),
+    ).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La fase eliminatoria ya fue generada para este torneo",
+        )
+
+    inscripciones = (
+        db.query(Inscripcion)
+        .filter(Inscripcion.torneo_id == data.torneo_id, Inscripcion.estado == "aprobado")
+        .order_by(
+            Inscripcion.puntos.desc(),
+            Inscripcion.partidos_ganados.desc(),
+            Inscripcion.partidos_perdidos.asc(),
+        )
+        .limit(data.n_clasificados)
+        .all()
+    )
+    if len(inscripciones) < data.n_clasificados:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Se necesitan {data.n_clasificados} equipos aprobados, hay {len(inscripciones)}",
+        )
+
+    max_fix = db.query(Fixture).filter(Fixture.torneo_id == data.torneo_id).order_by(Fixture.jornada.desc()).first()
+    jornada = (max_fix.jornada + 1) if max_fix else 1
+
+    nombre_fase = elimination_phase_name_from_size(data.n_clasificados)
+    fix = Fixture(torneo_id=data.torneo_id, jornada=jornada, nombre_fase=nombre_fase)
+    db.add(fix)
+    db.flush()
+
+    n = len(inscripciones)
+    for i in range(n // 2):
+        db.add(Partido(
+            fixture_id=fix.id,
+            inscripcion_local_id=inscripciones[i].id,
+            inscripcion_visitante_id=inscripciones[n - 1 - i].id,
+            ronda=nombre_fase,
+        ))
+
+    db.commit()
+    db.refresh(fix)
+    return fix
+
+
+@router.post("/siguiente-fase", response_model=FixtureOut, status_code=status.HTTP_201_CREATED)
+def generar_siguiente_fase(
+    data: SiguienteFaseRequest,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
+    fixture = db.query(Fixture).filter(
+        Fixture.id == data.fixture_id, Fixture.torneo_id == data.torneo_id
+    ).first()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture no encontrado")
+    if fixture.nombre_fase == "Final":
+        raise HTTPException(status_code=400, detail="La Final ya es la última fase")
+
+    partidos = db.query(Partido).filter(Partido.fixture_id == data.fixture_id).all()
+    if not partidos:
+        raise HTTPException(status_code=400, detail="Este fixture no tiene partidos")
+
+    ganadores = collect_winners(partidos)
+    nombre_siguiente = next_elimination_phase_name(fixture.nombre_fase)
+    if db.query(Fixture).filter(
+        Fixture.torneo_id == data.torneo_id,
+        Fixture.nombre_fase == nombre_siguiente,
+    ).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"La fase '{nombre_siguiente}' ya fue generada para este torneo",
+        )
+    next_fix = Fixture(
+        torneo_id=data.torneo_id,
+        jornada=fixture.jornada + 1,
+        nombre_fase=nombre_siguiente,
+    )
+    db.add(next_fix)
+    db.flush()
+
+    n = len(ganadores)
+    for i in range(n // 2):
+        db.add(Partido(
+            fixture_id=next_fix.id,
+            inscripcion_local_id=ganadores[i],
+            inscripcion_visitante_id=ganadores[n - 1 - i],
+            ronda=nombre_siguiente,
+        ))
+
+    db.commit()
+    db.refresh(next_fix)
+    return next_fix
+
+
+@router.delete("/{torneo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_fixture(torneo_id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    fixture_ids = [f.id for f in db.query(Fixture.id).filter(Fixture.torneo_id == torneo_id).all()]
+    if fixture_ids:
+        partido_ids = [p.id for p in db.query(Partido.id).filter(Partido.fixture_id.in_(fixture_ids)).all()]
+        if partido_ids:
+            atleta_ids_a_resetear = [
+                row[0]
+                for row in db.query(EventoPartido.atleta_jugador_id)
+                .filter(EventoPartido.partido_id.in_(partido_ids), EventoPartido.atleta_jugador_id.isnot(None))
+                .distinct()
+                .all()
+            ]
+            db.query(EventoPartido).filter(EventoPartido.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Notificacion).filter(Notificacion.partido_id.in_(partido_ids)).delete(synchronize_session=False)
+            db.query(Partido).filter(Partido.id.in_(partido_ids)).delete(synchronize_session=False)
+            db.flush()
+            recalculate_atleta_stats(db, atleta_ids_a_resetear)
+        db.query(Fixture).filter(Fixture.id.in_(fixture_ids)).delete(synchronize_session=False)
+
+    db.query(Inscripcion).filter(Inscripcion.torneo_id == torneo_id).update({
+        Inscripcion.puntos: 0,
+        Inscripcion.partidos_jugados: 0,
+        Inscripcion.partidos_ganados: 0,
+        Inscripcion.partidos_empatados: 0,
+        Inscripcion.partidos_perdidos: 0,
+        Inscripcion.goles_a_favor: 0,
+        Inscripcion.goles_en_contra: 0,
+    }, synchronize_session=False)
     db.commit()

@@ -62,7 +62,6 @@ def _setup_datos(client):
     if not dep:
         dep = Deporte(
             nombre="Fútbol Insc Test", tipo_competidor="equipo",
-            min_jugadores=1, max_jugadores=20,
         )
         db.add(dep)
         db.flush()
@@ -81,6 +80,7 @@ def _setup_datos(client):
             nombre_equipo="Los Probadores",
             institucion_id=inst.id,
             deporte_id=dep.id,
+            estado="aprobado",  # tu API solo permite inscribir equipos aprobados
         )
         db.add(equipo)
         db.flush()
