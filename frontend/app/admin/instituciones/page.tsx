@@ -232,8 +232,11 @@ export default function InstitucionesPage() {
           <Field label="Ciudad" required>
             <Input value={form.ciudad} onChange={(e) => setForm({ ...form, ciudad: e.target.value })} required maxLength={100} placeholder="Ej. Lima" />
           </Field>
-          <Field label="Contacto (teléfono o correo)">
-            <Input value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })} maxLength={200} placeholder="Ej. 999-888-777" />
+          <Field
+            label="Contacto (teléfono o correo)"
+            hint="Si ingresas un correo electrónico, la institución recibirá un aviso de registro."
+          >
+            <Input value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })} maxLength={200} placeholder="Ej. contacto@colegio.pe o 999-888-777" />
           </Field>
           <Field
             label="Categoría (año escolar)"

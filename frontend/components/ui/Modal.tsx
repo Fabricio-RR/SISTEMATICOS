@@ -35,18 +35,29 @@ export function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Guardamos siempre la última versión de onClose en un ref para que los efectos
+  // de abajo NO dependan de su identidad (se recrea en cada render del padre). Si
+  // dependieran de ella, se re-ejecutarían en cada tecla y robarían el foco al input.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Foco inicial: solo cuando el modal se abre, no en cada render.
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
+
+  // Escape + bloqueo del scroll de fondo mientras está abierto.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

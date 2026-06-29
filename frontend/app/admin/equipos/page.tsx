@@ -88,7 +88,7 @@ export default function EquiposPage() {
   const [editStats, setEditStats] = useState<Record<number, { goles_anotados?: number; puntos_anotados?: number; tarjetas_amarillas?: number; tarjetas_rojas?: number }>>({});
   const [guardandoStat, setGuardandoStat] = useState<number | null>(null);
 
-  // Filters for athlete statistics
+  // Filtros (por torneo y fase) para las estadísticas de cada atleta.
   const [filtroTorneo, setFiltroTorneo] = useState<Record<number, number>>({});
   const [filtroFase, setFiltroFase] = useState<Record<number, string>>({});
 

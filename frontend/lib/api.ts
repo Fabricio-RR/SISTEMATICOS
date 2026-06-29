@@ -18,6 +18,7 @@ import type {
   TorneoCreate,
   Sede,
   SedeCreate,
+  SedeUpdate,
   Noticia,
   Inscripcion,
   InscripcionCreate,
@@ -265,6 +266,8 @@ export const api = {
   getSedes: () => request<Sede[]>("/api/sedes/"),
   createSede: (data: SedeCreate) =>
     request<Sede>("/api/sedes/", { method: "POST", body: JSON.stringify(data) }),
+  updateSede: (id: number, data: SedeUpdate) =>
+    request<Sede>(`/api/sedes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteSede: (id: number) => request<void>(`/api/sedes/${id}`, { method: "DELETE" }),
 
   // ── Noticias ──────────────────────────────────────────────────────────────────

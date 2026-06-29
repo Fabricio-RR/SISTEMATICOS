@@ -233,6 +233,12 @@ export interface SedeCreate {
   capacidad?: number;
 }
 
+export interface SedeUpdate {
+  nombre_sede?: string;
+  ciudad?: string;
+  capacidad?: number;
+}
+
 // ── Noticias ──────────────────────────────────────────────────────────────────
 
 export interface Noticia {
