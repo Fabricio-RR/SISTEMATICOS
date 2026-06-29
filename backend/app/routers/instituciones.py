@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,6 +13,7 @@ from app.core.deps import require_admin
 from app.models.usuarios import Usuario
 from app.core.categorias import pais_por_categoria
 from app.models.club_equipo import ClubEquipo
+from app.services.email import send_email
 from app.services.instituciones import (
     candidatos_duplicados,
     clave_canonica,
@@ -69,6 +70,7 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=InstitucionOut, status_code=status.HTTP_201_CREATED)
 def create(
     data: InstitucionCreate,
+    background: BackgroundTasks,
     permitir_duplicado: bool = Query(
         default=False,
         description="Si es True, omite el bloqueo por coincidencia exacta (decisión del admin).",
@@ -98,6 +100,19 @@ def create(
     db.add(inst)
     db.commit()
     db.refresh(inst)
+
+    # Si la institución trae un correo de contacto, le avisamos que quedó registrada.
+    # Se manda en segundo plano: si el correo falla, el alta ya quedó guardada.
+    if inst.contacto and "@" in inst.contacto:
+        background.add_task(
+            send_email,
+            inst.contacto,
+            "Institución registrada — Olimpiadas Perú",
+            f"Hola,\n\nLa institución «{inst.nombre}» ({inst.ciudad}) fue registrada "
+            f"en el sistema de Olimpiadas Perú.\n\n"
+            f"Ya puede participar en los torneos disponibles.\n\n— Olimpiadas Perú",
+        )
+
     return inst
 
 
