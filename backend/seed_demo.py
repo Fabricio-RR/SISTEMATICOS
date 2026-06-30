@@ -27,7 +27,8 @@ from app.models.fixture import Fixture
 from app.models.partidos import Partido
 from app.models.eventos_partido import EventoPartido
 from app.core.security import hash_password
-from app.core.pais_categoria import asignar_pais, LISTA_PAISES
+from app.core.categorias import pais_por_categoria
+from app.services.instituciones import clave_canonica
 
 db = SessionLocal()
 
@@ -41,27 +42,26 @@ def main():
     # ── 1. INSTITUCIONES ──────────────────────────────────────────────────
     inst_data = [
         dict(nombre="UTP – Campus Lima Centro", nombre_corto="UTP-CENTRO",
-             ciudad="Lima", nivel="universidad", categoria="3° ciclo",
-             pais_asignado="Italia", pais_emoji="🇮🇹"),
+             ciudad="Lima", categoria="Primer año"),
         dict(nombre="UTP – Campus Lima Norte", nombre_corto="UTP-NORTE",
-             ciudad="Lima", nivel="universidad", categoria="5° ciclo",
-             pais_asignado="Japón", pais_emoji="🇯🇵"),
+             ciudad="Lima", categoria="Segundo año"),
         dict(nombre="UTP – Campus Lima Sur", nombre_corto="UTP-SUR",
-             ciudad="Lima", nivel="universidad", categoria="2° ciclo",
-             pais_asignado="España", pais_emoji="🇪🇸"),
+             ciudad="Lima", categoria="Tercer año"),
         dict(nombre="Universidad Nacional Mayor de San Marcos", nombre_corto="UNMSM",
-             ciudad="Lima", nivel="universidad", categoria="4° ciclo",
-             pais_asignado="Alemania", pais_emoji="🇩🇪"),
+             ciudad="Lima", categoria="Cuarto año"),
         dict(nombre="Universidad de Lima", nombre_corto="ULIMA",
-             ciudad="Lima", nivel="universidad", categoria="6° ciclo",
-             pais_asignado="Australia", pais_emoji="🇦🇺"),
+             ciudad="Lima", categoria="Quinto año"),
         dict(nombre="Universidad Privada del Norte", nombre_corto="UPN",
-             ciudad="Lima", nivel="universidad", categoria="1° ciclo",
-             pais_asignado="Estados Unidos", pais_emoji="🇺🇸"),
+             ciudad="Lima", categoria="Primer año"),
     ]
     instituciones = []
     for d in inst_data:
-        i = Institucion(**d, estado="activo")
+        i = Institucion(
+            **d,
+            estado="activo",
+            nombre_normalizado=clave_canonica(d["nombre"]),
+            pais_representativo=pais_por_categoria(d["categoria"]),
+        )
         db.add(i)
         instituciones.append(i)
     db.flush()
@@ -95,7 +95,7 @@ def main():
     # ── 3. DEPORTES (obtener IDs ya creados por seed.py) ─────────────────
     futbol_v  = db.query(Deporte).filter(Deporte.nombre == "Fútbol Varones").first()
     basket_v  = db.query(Deporte).filter(Deporte.nombre == "Básquet Varones").first()
-    voley_d   = db.query(Deporte).filter(Deporte.nombre == "Vóley Damas").first()
+    voley_d   = db.query(Deporte).filter(Deporte.nombre == "Vóley Mixto").first()
 
     if not futbol_v or not basket_v or not voley_d:
         print("ERROR: Ejecuta primero 'python seed.py' para crear los deportes.")
@@ -120,49 +120,21 @@ def main():
     torneo_futbol = Torneo(
         deporte_id=futbol_v.id,
         nombre="Olimpiadas PERÚ 2026 – Fútbol Varones",
-        formato="liga", temporada="2026", estado="activo",
-        fecha_inicio="2026-05-05", fecha_fin="2026-07-25",
-        descripcion="Torneo de fútbol varones de la temporada 2026. Participan 6 universidades de Lima en formato liga (todos contra todos).",
+        formato="liga", temporada="2026", estado="en_curso",
     )
     torneo_basket = Torneo(
         deporte_id=basket_v.id,
         nombre="Olimpiadas PERÚ 2026 – Básquet Varones",
-        formato="grupos", temporada="2026", estado="activo",
-        fecha_inicio="2026-05-12", fecha_fin="2026-07-18",
-        descripcion="Torneo de básquetbol varones con fase de grupos y eliminación directa.",
+        formato="grupos", temporada="2026", estado="en_curso",
     )
     torneo_voley = Torneo(
         deporte_id=voley_d.id,
         nombre="Olimpiadas PERÚ 2026 – Vóley Damas",
-        formato="liga", temporada="2026", estado="activo",
-        fecha_inicio="2026-05-19", fecha_fin="2026-07-11",
-        descripcion="Torneo de vóleibol femenino en formato liga.",
+        formato="liga", temporada="2026", estado="en_curso",
     )
     db.add_all([torneo_futbol, torneo_basket, torneo_voley])
     db.flush()
     print("  ✓ Torneos")
-
-    def _pais_seed(equipos_lista):
-        """Asigna países únicos por deporte a cada equipo recién creado."""
-        for eq in equipos_lista:
-            inst = next((i for i in instituciones if i.id == eq.institucion_id), None)
-            if not inst:
-                continue
-            deseado_pais, deseado_emoji = asignar_pais(inst.nivel, inst.categoria)
-            if not deseado_pais:
-                deseado_pais, deseado_emoji = LISTA_PAISES[0]
-            tomados = {e.pais_asignado for e in db.query(ClubEquipo).filter(
-                ClubEquipo.deporte_id == eq.deporte_id, ClubEquipo.id != eq.id
-            ).all() if e.pais_asignado}
-            if deseado_pais not in tomados:
-                eq.pais_asignado = deseado_pais
-                eq.pais_emoji = deseado_emoji
-            else:
-                for pais, emoji in LISTA_PAISES:
-                    if pais not in tomados:
-                        eq.pais_asignado = pais
-                        eq.pais_emoji = emoji
-                        break
 
     # ── 6. EQUIPOS DE FÚTBOL (6 equipos) ─────────────────────────────────
     equipos_futbol_data = [
@@ -176,12 +148,10 @@ def main():
     equipos_f = []
     for nombre, inst_id in equipos_futbol_data:
         e = ClubEquipo(nombre_equipo=nombre, institucion_id=inst_id,
-                       deporte_id=futbol_v.id, estado="aprobado",
-                       partidos_jugados=3)
+                       deporte_id=futbol_v.id, estado="aprobado")
         db.add(e)
         equipos_f.append(e)
     db.flush()
-    _pais_seed(equipos_f)
 
     # Jugadores de fútbol (12-14 por equipo) — nombres peruanos realistas
     plantillas_futbol = [
@@ -287,12 +257,10 @@ def main():
     equipos_b = []
     for nombre, inst_id in equipos_basket_data:
         e = ClubEquipo(nombre_equipo=nombre, institucion_id=inst_id,
-                       deporte_id=basket_v.id, estado="aprobado",
-                       partidos_jugados=2)
+                       deporte_id=basket_v.id, estado="aprobado")
         db.add(e)
         equipos_b.append(e)
     db.flush()
-    _pais_seed(equipos_b)
 
     plantillas_basket = [
         # Aguilas Basket
@@ -345,12 +313,10 @@ def main():
     equipos_v = []
     for nombre, inst_id in equipos_voley_data:
         e = ClubEquipo(nombre_equipo=nombre, institucion_id=inst_id,
-                       deporte_id=voley_d.id, estado="aprobado",
-                       partidos_jugados=2)
+                       deporte_id=voley_d.id, estado="aprobado")
         db.add(e)
         equipos_v.append(e)
     db.flush()
-    _pais_seed(equipos_v)
 
     plantillas_voley = [
         # Aguilas Vóley

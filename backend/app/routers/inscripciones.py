@@ -11,7 +11,7 @@ from app.schemas.inscripciones import InscripcionCreate, InscripcionOut
 from app.core.deps import require_admin, get_current_user
 from app.models.usuarios import Usuario
 from app.services.competition import apply_walkover
-from app.services.email import send_email
+from app.services.notify import notify_institucion
 from app.services.enrollment import (
     assert_inscripcion_admin_change_allowed,
     assert_inscripcion_allowed,
@@ -20,18 +20,6 @@ from app.services.enrollment import (
 _ESTADOS_NO_ACTIVOS = ("rechazado", "retirado")
 
 router = APIRouter()
-
-
-def _correo_institucion(db: Session, institucion_id: int | None) -> str | None:
-    # Devuelve el correo con el que la institución se registró, para poder avisarle.
-    if not institucion_id:
-        return None
-    user = (
-        db.query(Usuario)
-        .filter(Usuario.institucion_id == institucion_id, Usuario.rol == "institucion")
-        .first()
-    )
-    return user.correo if user else None
 
 
 def _enrich(insc: Inscripcion) -> InscripcionOut:
@@ -101,13 +89,19 @@ def aprobar(
     torneo = insc.torneo.nombre if insc.torneo else "el torneo"
     institucion_id = insc.club_equipo.institucion_id if insc.club_equipo else None
 
-    # Aviso que la institución verá dentro del sistema, en su lista de notificaciones.
-    if institucion_id:
-        db.add(Notificacion(
-            institucion_id=institucion_id,
-            titulo="Inscripción aprobada",
-            contenido=f"La inscripción de {equipo} a {torneo} fue aprobada. ¡Mucha suerte!",
-        ))
+    # Aviso in-app + correo de confirmación (ambos canales en una sola llamada).
+    notify_institucion(
+        db,
+        background,
+        institucion_id,
+        "Inscripción aprobada",
+        f"La inscripción de {equipo} a {torneo} fue aprobada. ¡Mucha suerte!",
+        cuerpo_email=(
+            f"Hola,\n\nTu inscripción de \"{equipo}\" al torneo \"{torneo}\" ha sido aprobada.\n"
+            f"Ya puedes consultar el calendario y la tabla de posiciones en el portal.\n\n"
+            f"— Olimpiadas Perú"
+        ),
+    )
 
     db.add(Auditoria(
         usuario_id=current_user.id,
@@ -116,23 +110,16 @@ def aprobar(
         valor_nuevo=f"inscripcion_id={id} aprobada",
     ))
     db.commit()
-
-    # Además le enviamos un correo de confirmación. Se manda en segundo plano
-    # para no demorar la respuesta; si el correo falla, la aprobación ya quedó guardada.
-    correo = _correo_institucion(db, institucion_id)
-    background.add_task(
-        send_email,
-        correo,
-        "Inscripción aprobada — Olimpiadas Perú",
-        f"Hola,\n\nTu inscripción de \"{equipo}\" al torneo \"{torneo}\" ha sido aprobada.\n"
-        f"Ya puedes consultar el calendario y la tabla de posiciones en el portal.\n\n"
-        f"— Olimpiadas Perú",
-    )
     return _enrich(insc)
 
 
 @router.patch("/{id}/rechazar", response_model=InscripcionOut)
-def rechazar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+def rechazar(
+    id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_admin),
+):
     insc = db.query(Inscripcion).options(
         joinedload(Inscripcion.club_equipo), joinedload(Inscripcion.torneo)
     ).filter(Inscripcion.id == id).first()
@@ -144,6 +131,24 @@ def rechazar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(requir
     if insc.estado in _ESTADOS_NO_ACTIVOS:
         raise HTTPException(status_code=400, detail=f"No se puede rechazar una inscripción en estado '{insc.estado}'")
     insc.estado = "rechazado"
+
+    equipo = insc.club_equipo.nombre_equipo if insc.club_equipo else "Tu equipo"
+    torneo = insc.torneo.nombre if insc.torneo else "el torneo"
+    institucion_id = insc.club_equipo.institucion_id if insc.club_equipo else None
+
+    # Espejo de "aprobar": la institución también se entera si su inscripción se rechaza.
+    notify_institucion(
+        db,
+        background,
+        institucion_id,
+        "Inscripción rechazada",
+        f"La inscripción de {equipo} a {torneo} fue rechazada.",
+        cuerpo_email=(
+            f"Hola,\n\nLamentamos informarte que tu inscripción de \"{equipo}\" al torneo "
+            f"\"{torneo}\" fue rechazada.\nSi crees que es un error, contacta al "
+            f"administrador del torneo.\n\n— Olimpiadas Perú"
+        ),
+    )
     db.commit()
     return _enrich(insc)
 

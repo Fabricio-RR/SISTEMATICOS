@@ -10,5 +10,7 @@ class NotificacionOut(BaseModel):
     contenido: str
     leida: bool
     creada_en: datetime
+    email_estado: str
+    email_enviado_en: datetime | None
 
     model_config = {"from_attributes": True}

@@ -14,6 +14,14 @@ class NoticiaCreate(NoticiaBase):
     pass
 
 
+class NoticiaUpdate(BaseModel):
+    titulo: str | None = None
+    contenido: str | None = None
+    imagen_url: str | None = None
+    esta_publicado: bool | None = None
+    fecha_publicacion: datetime | None = None
+
+
 class NoticiaOut(NoticiaBase):
     id: int
 

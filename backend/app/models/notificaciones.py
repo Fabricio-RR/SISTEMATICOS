@@ -16,4 +16,11 @@ class Notificacion(Base):
     leida: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     creada_en: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Constancia del correo asociado al aviso:
+    #   no_aplica → este aviso no envía correo
+    #   pendiente → encolado, aún sin confirmar
+    #   enviado / fallido → resultado del último intento
+    email_estado: Mapped[str] = mapped_column(String(20), default="no_aplica")
+    email_enviado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     institucion: Mapped["Institucion"] = relationship("Institucion")

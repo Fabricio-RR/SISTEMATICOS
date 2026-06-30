@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     hash_refresh_token,
+    now_utc,
 )
 from app.core.deps import get_current_user, require_admin
 from app.core.limiter import limiter
@@ -72,7 +73,7 @@ def login(request: Request, data: LoginRequest, response: Response, db: Session 
 
     token = create_access_token({"sub": str(user.id)})
     raw_refresh, refresh_hash = create_refresh_token()
-    expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expires_at = now_utc() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     db.add(RefreshToken(
         usuario_id=user.id,
         token_hash=refresh_hash,
@@ -105,8 +106,8 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
     if stored.revoked_at is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revocado")
-    if stored.expires_at < datetime.utcnow():
-        stored.revoked_at = datetime.utcnow()
+    if stored.expires_at < now_utc():
+        stored.revoked_at = now_utc()
         db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expirado")
 
@@ -114,9 +115,9 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario inválido")
 
-    stored.revoked_at = datetime.utcnow()
+    stored.revoked_at = now_utc()
     raw_new, new_hash = create_refresh_token()
-    expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expires_at = now_utc() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     db.add(RefreshToken(
         usuario_id=user.id,
         token_hash=new_hash,
@@ -144,7 +145,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
         token_hash = hash_refresh_token(raw_refresh)
         stored = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
         if stored and stored.revoked_at is None:
-            stored.revoked_at = datetime.utcnow()
+            stored.revoked_at = now_utc()
             db.commit()
     _clear_refresh_cookie(response)
 
@@ -182,7 +183,8 @@ def me(current_user: Usuario = Depends(get_current_user)):
 # ── Solicitud de acceso institucional (registro público con aprobación) ──────
 
 @router.post("/solicitar", status_code=status.HTTP_201_CREATED)
-def solicitar_acceso(data: SolicitudAccesoRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")
+def solicitar_acceso(request: Request, data: SolicitudAccesoRequest, db: Session = Depends(get_db)):
     """
     Formulario público. Crea la institución + usuario con esta_activo=False.
     El admin debe aprobar la cuenta desde el panel.

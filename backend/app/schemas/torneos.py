@@ -39,6 +39,24 @@ class TorneoCreate(BaseModel):
         return v
 
 
+class TorneoUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=2, max_length=150)
+    formato: str | None = None
+    temporada: str | None = Field(default=None, min_length=4, max_length=20)
+
+    @field_validator("nombre", "temporada", mode="before")
+    @classmethod
+    def _trim(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("formato")
+    @classmethod
+    def _formato_valido(cls, v):
+        if v is not None and v not in FORMATOS_TORNEO:
+            raise ValueError(f"Formato inválido. Opciones: {', '.join(FORMATOS_TORNEO)}")
+        return v
+
+
 class TorneoOut(TorneoCreate):
     id: int
     estado: str
