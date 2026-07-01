@@ -1,0 +1,43 @@
+"""
+Servicio para enviar correos electrónicos del sistema.
+"""
+import logging
+import smtplib
+import ssl
+from email.message import EmailMessage
+
+from app.config import settings
+
+logger = logging.getLogger("email")
+
+
+def send_email(to: str | None, subject: str, body: str) -> bool:
+    """Envía un correo. Devuelve True si se envió (o se simuló en modo dev),
+    False si no había destinatario o el envío falló."""
+    if not to:
+        return False
+
+    # Si el correo no está configurado, no enviamos: solo lo mostramos en consola.
+    # Lo damos por "enviado" para poder probar el flujo sin SMTP real.
+    if not settings.EMAIL_ENABLED or not settings.SMTP_HOST:
+        logger.info("[EMAIL:dev] Para=%s | Asunto=%s\n%s", to, subject, body)
+        return True
+
+    msg = EmailMessage()
+    msg["From"] = settings.SMTP_FROM
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+            if settings.SMTP_TLS:
+                server.starttls(context=ssl.create_default_context())
+            if settings.SMTP_USER:
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.send_message(msg)
+        logger.info("Correo enviado a %s (%s)", to, subject)
+        return True
+    except Exception:  # noqa: BLE001 - si el envío falla, lo registramos y seguimos sin cortar la operación
+        logger.exception("No se pudo enviar el correo a %s", to)
+        return False

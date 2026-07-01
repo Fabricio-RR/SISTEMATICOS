@@ -1,0 +1,30 @@
+from sqlalchemy import String, CheckConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class Institucion(Base):
+    __tablename__ = "instituciones"
+    __table_args__ = (
+        CheckConstraint(
+            "estado IN ('activo', 'pendiente', 'inactivo')",
+            name="ck_institucion_estado",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    nombre_corto: Mapped[str] = mapped_column(String(50))
+    # Clave canónica del nombre (sin tildes, mayúsculas, sin palabras genéricas).
+    # Permite detectar duplicados escritos distinto. Indexada para el match exacto.
+    nombre_normalizado: Mapped[str] = mapped_column(String(200), default="", index=True)
+    ciudad: Mapped[str] = mapped_column(String(100))
+    estado: Mapped[str] = mapped_column(String(30), default="activo")
+    imagen_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    contacto: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    categoria: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    pais_representativo: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    usuarios: Mapped[list["Usuario"]] = relationship("Usuario", back_populates="institucion")
+    equipos: Mapped[list["ClubEquipo"]] = relationship("ClubEquipo", back_populates="institucion")

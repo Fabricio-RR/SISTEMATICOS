@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens ──────────────────────────────────────────────────────
+   Colores como canales RGB (espaciados) para permitir `color / <alpha>`.
+   Neutral del sistema: slate (una sola identidad en admin y público). */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a; /* slate-900 */
+
+  /* Marca — rojo Olimpiadas */
+  --brand-50: 254 242 242;
+  --brand-100: 254 226 226;
+  --brand-200: 254 202 202;
+  --brand-300: 252 165 165;
+  --brand-400: 248 113 113;
+  --brand-500: 239 68 68;
+  --brand-600: 220 38 38;
+  --brand-700: 185 28 28;
+  --brand-800: 153 27 27;
+  --brand-900: 127 29 29;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Tipografía display para titulares. */
+.font-display {
+  font-family: var(--font-display), 'Sora', var(--font-sans), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ── Micro-animaciones ─────────────────────────────────────────────── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Esqueleto de carga con brillo deslizante. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: #e9edf2;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise { animation: none; }
+  .skeleton::after { animation: none; }
+}

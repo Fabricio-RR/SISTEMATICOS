@@ -31,9 +31,17 @@ Roles base:
 - Institucion: gestiona equipos y jugadores propios, solicita inscripciones.
 - Arbitro: actualiza resultados solo en partidos asignados.
 - Mesa/Staff: apoyo operativo en eventos, resultados y horarios.
+<<<<<<< HEAD
 
 Reglas:
 
+=======
+- Publico: solo lectura, sin login.
+
+Reglas:
+
+- Roles base con permisos editables.
+>>>>>>> fabricio
 - Se pueden crear roles nuevos con permisos personalizados.
 - 2FA obligatorio (TOTP + respaldo por correo) para Admin y Arbitro.
 
@@ -137,6 +145,10 @@ Actualizacion:
 ## 12) Flujo de aprobaciones
 
 - Todas las altas y cambios sensibles pasan por cola de aprobacion.
+<<<<<<< HEAD
+=======
+- Admin ve diff de cambios y deja comentario.
+>>>>>>> fabricio
 - Estado final: aprobado o rechazado.
 
 ## 13) Reglas y formatos deportivos
