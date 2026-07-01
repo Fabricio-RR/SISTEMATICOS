@@ -70,9 +70,15 @@ docker compose up --build
 
 Esto hace automáticamente:
 - Levanta MySQL y espera a que esté listo
-- Ejecuta las migraciones (crea las 14 tablas)
+- Ejecuta las migraciones (crea las tablas)
 - Crea el usuario admin inicial
 - Inicia el servidor FastAPI
+
+> **Datos de demo (opcional):** para poblar torneos, equipos y partidos de
+> prueba, con los contenedores arriba ejecuta:
+> ```bash
+> docker compose exec backend python seed_demo.py
+> ```
 
 **4. Levantar el frontend (en otra terminal)**
 ```bash
@@ -89,6 +95,7 @@ npm run dev
 | `http://localhost:3000/login` | Inicio de sesión |
 | `http://localhost:3000/admin` | Panel administrativo |
 | `http://localhost:8000/docs` | Documentación API (Swagger) |
+| `http://localhost:8080` | PHPMyAdmin (gestión visual de la BD) |
 
 **Credenciales de acceso iniciales:**
 ```
@@ -139,13 +146,16 @@ GRANT ALL PRIVILEGES ON olimpiadas_peru.* TO 'olimpiadas_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### Paso 2 — Configurar el archivo `.env`
+### Paso 2 — Configurar el archivo `backend/.env`
+
+Cuando el backend corre en el host, lee **`backend/.env`** (no el de la raíz):
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
-Edita `.env` y cambia la línea `DATABASE_URL` para apuntar a `localhost` en vez de `db`:
+Ese archivo ya apunta a `localhost`. Solo ajusta usuario/clave/base para que
+coincidan con lo que creaste en el Paso 1:
 
 ```env
 DATABASE_URL=mysql+pymysql://olimpiadas_user:olimpiadas_pass_2026@localhost:3306/olimpiadas_peru
@@ -173,6 +183,9 @@ alembic upgrade head
 
 # Crear datos iniciales (admin + deportes)
 python seed.py
+
+# (Opcional) Datos de demo: torneos, equipos, jugadores y partidos
+python seed_demo.py
 
 # Iniciar el servidor
 uvicorn app.main:app --reload --port 8000
@@ -235,7 +248,39 @@ venv/bin/locust -f tests/performance/locustfile.py --host http://localhost:8000 
 
 ---
 
-## Base de datos — 14 tablas
+## Problemas comunes
+
+**`Access denied for user '...'@'...' (using password: YES)`**
+El usuario/clave del `DATABASE_URL` no coincide con los del contenedor MySQL.
+MySQL solo crea el usuario la **primera vez** que se genera el volumen: si cambiaste
+`MYSQL_USER`/`MYSQL_PASSWORD` después, hay que recrearlo:
+```bash
+docker compose down -v      # borra el volumen (¡borra los datos!)
+docker compose up --build   # recrea MySQL con las credenciales del .env
+```
+Verifica que `MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE` del `.env` de la raíz
+coincidan con el usuario/clave/base del `DATABASE_URL`.
+
+**`service "backend" is not running` / `python: not found` al usar `docker compose exec`**
+Los contenedores no están arriba, o estás usando el servicio equivocado.
+Levántalos con `docker compose up -d` y usa el servicio `backend`
+(`docker compose exec backend python seed_demo.py`), no `db`.
+
+**`Path doesn't exist: '...\alembic'` al correr `reset_db.py`**
+Ejecuta los scripts desde la carpeta `backend/` con el venv activo.
+
+**El backend se reinicia en bucle / la API no responde, pero `docker compose ps` se ve "normal"**
+El contenedor tiene `restart: unless-stopped`: si el arranque falla, se reinicia
+en silencio y el error no aparece en la consola de `up`. Revisa el detalle con:
+```bash
+docker logs olimpiadas_backend -f
+```
+Causas típicas: credenciales de BD equivocadas (ver el primer punto) o el volumen
+del código sin permisos (en Linux con SELinux el mount ya usa `:z`).
+
+---
+
+## Base de datos — tablas
 
 ```
 instituciones     → colegios, universidades y clubes
