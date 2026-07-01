@@ -5,7 +5,6 @@ import { usePartidos } from "@/lib/hooks";
 import type { Partido } from "@/types/api";
 import { CardsSkeleton, Vacio } from "./Estados";
 
-/** Orden oficial de las fases eliminatorias (ver backend competition.py). */
 const FASES = ["Cuartos de Final", "Semifinales", "Final"] as const;
 
 function MatchCard({ partido }: { partido: Partido }) {
@@ -16,37 +15,25 @@ function MatchCard({ partido }: { partido: Partido }) {
   const visitGana = finalizado && l != null && v != null && v > l;
 
   const fila = (nombre: string, score: number | null, gana: boolean) => (
-    <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${gana ? "bg-slate-50" : ""}`}>
-      <span className={`truncate text-sm ${gana ? "font-bold text-slate-900" : "text-slate-500"}`}>{nombre || "Por definir"}</span>
-      <span className={`text-base font-black tabular-nums ${gana ? "text-red-600" : "text-slate-400"}`}>
+    <div className={`flex items-center justify-between gap-3 px-4 py-2 ${gana ? "bg-red-50" : ""}`}>
+      <span className={`truncate text-xs font-bold uppercase ${gana ? "text-red-700" : "text-slate-600"}`}>
+        {nombre || "Por definir"}
+      </span>
+      <span className={`text-sm font-black tabular-nums ${gana ? "text-red-600" : "text-slate-400"}`}>
         {finalizado ? score ?? "–" : "·"}
       </span>
     </div>
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="w-64 overflow-hidden rounded-lg border-2 border-slate-900 bg-white shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]">
       {fila(partido.local_nombre, l, localGana)}
-      <div className="border-t border-slate-100" />
+      <div className="border-t border-slate-200" />
       {fila(partido.visitante_nombre, v, visitGana)}
-      {(partido.es_walkover || (!finalizado && partido.fecha_hora)) && (
-        <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-1.5 text-[11px] font-medium text-slate-400">
-          {partido.es_walkover
-            ? "Walkover (W.O.)"
-            : new Date(partido.fecha_hora as string).toLocaleDateString("es-PE", {
-                day: "2-digit",
-                month: "short",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-        </div>
-      )}
     </div>
   );
 }
 
-// Llaves del torneo: agrupa los partidos por fase eliminatoria y los muestra
-// en columnas (Cuartos → Semifinales → Final).
 export default function BracketView({ torneoId }: { torneoId?: number }) {
   const { data, isLoading, isError } = usePartidos(torneoId != null ? { torneo_id: torneoId } : undefined, {
     enabled: torneoId != null,
@@ -69,35 +56,33 @@ export default function BracketView({ torneoId }: { torneoId?: number }) {
   if (isError) return <Vacio titulo="No se pudieron cargar las llaves" detalle="Intenta nuevamente en unos momentos." />;
 
   const fasesPresentes = FASES.filter((f) => (porFase.get(f)?.length ?? 0) > 0);
-  if (fasesPresentes.length === 0) {
-    return (
-      <Vacio
-        titulo="Este torneo aún no tiene fase eliminatoria"
-        detalle="Las llaves aparecen cuando se genera la fase de cuartos, semifinales o final. Los torneos de liga no usan llaves: revisa la tabla de posiciones."
-      />
-    );
-  }
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex min-w-max items-stretch gap-6">
-        {fasesPresentes.map((fase) => {
+    <div className="overflow-x-auto pb-10">
+      {/* Contenedor principal con espacio para los conectores */}
+      <div className="flex min-w-max items-start gap-12 px-8 pt-8">
+        {fasesPresentes.map((fase, colIndex) => {
           const partidos = porFase.get(fase) ?? [];
-          const esFinal = fase === "Final";
+          const isLast = colIndex === fasesPresentes.length - 1;
+
           return (
-            <div key={fase} className="flex min-w-[240px] flex-col">
-              <p className="mb-4 border-l-4 border-red-600 pl-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <div key={fase} className="flex flex-col items-center">
+              <div className="mb-8 rounded-full bg-slate-900 px-6 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
                 {fase}
-              </p>
-              <div className="flex flex-1 flex-col justify-center gap-4">
+              </div>
+              
+              <div className="flex flex-col justify-center gap-12">
                 {partidos.map((p) => (
-                  <div key={p.id}>
-                    {esFinal && (
-                      <div className="mb-2 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-500">
-                        <Trophy className="h-4 w-4" /> Gran Final
-                      </div>
-                    )}
+                  <div key={p.id} className="relative flex items-center justify-center group">
                     <MatchCard partido={p} />
+                    
+                    {/* Conectores CSS tipo Bracket */}
+                    {!isLast && (
+                      <div className="absolute top-1/2 -right-8 h-[calc(100%+3rem)] w-8 border-t-2 border-r-2 border-slate-300 rounded-tr-lg" />
+                    )}
+                    {colIndex !== 0 && (
+                      <div className="absolute top-1/2 -left-8 w-8 border-t-2 border-slate-300" />
+                    )}
                   </div>
                 ))}
               </div>
