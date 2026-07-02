@@ -23,6 +23,23 @@ from app.services.instituciones import (
 router = APIRouter()
 
 
+def _enviar_bienvenida(background: BackgroundTasks, inst: Institucion) -> None:
+    """Encola el correo de bienvenida a la institución si su `contacto` es un correo.
+    Se usa al crear y al editar (cuando se añade/cambia el correo de contacto)."""
+    if inst.contacto and "@" in inst.contacto:
+        background.add_task(
+            send_email,
+            inst.contacto,
+            "¡Bienvenidos a Olimpiadas Perú!",
+            f"¡Hola, {inst.nombre}!\n\n"
+            f"¡Nos alegra tenerlos con nosotros! Ya están registrados en Olimpiadas Perú "
+            f"y listos para competir.\n\n"
+            f"Desde ahora pueden inscribir a sus equipos en los torneos disponibles, seguir "
+            f"sus partidos y consultar la tabla de posiciones en tiempo real.\n\n"
+            f"¡Les deseamos muchos éxitos en la competencia!\n\n— El equipo de Olimpiadas Perú",
+        )
+
+
 def _a_similar(candidatos) -> list[InstitucionSimilar]:
     return [
         InstitucionSimilar(
@@ -103,24 +120,17 @@ def create(
 
     # Si la institución trae un correo de contacto, le avisamos que quedó registrada.
     # Se manda en segundo plano: si el correo falla, el alta ya quedó guardada.
-    if inst.contacto and "@" in inst.contacto:
-        background.add_task(
-            send_email,
-            inst.contacto,
-            "Institución registrada — Olimpiadas Perú",
-            f"Hola,\n\nLa institución «{inst.nombre}» ({inst.ciudad}) fue registrada "
-            f"en el sistema de Olimpiadas Perú.\n\n"
-            f"Ya puede participar en los torneos disponibles.\n\n— Olimpiadas Perú",
-        )
+    _enviar_bienvenida(background, inst)
 
     return inst
 
 
 @router.put("/{id}", response_model=InstitucionOut)
-def update(id: int, data: InstitucionUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+def update(id: int, data: InstitucionUpdate, background: BackgroundTasks, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     inst = db.query(Institucion).filter(Institucion.id == id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Institución no encontrada")
+    contacto_previo = inst.contacto  # para detectar si el correo de contacto cambia
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(inst, field, value)
     if data.nombre is not None:
@@ -128,6 +138,12 @@ def update(id: int, data: InstitucionUpdate, db: Session = Depends(get_db), _: U
         inst.nombre_normalizado = clave_canonica(inst.nombre)
     db.commit()
     db.refresh(inst)
+
+    # Si el correo de contacto cambió a uno nuevo (p. ej. se le añadió a una
+    # institución precargada), le mandamos la bienvenida "como si fuera el alta".
+    if inst.contacto and "@" in inst.contacto and inst.contacto != contacto_previo:
+        _enviar_bienvenida(background, inst)
+
     return inst
 
 

@@ -228,6 +228,8 @@ export const api = {
     const qs = opts.permitirDuplicado ? "?permitir_duplicado=true" : "";
     return request<Institucion>(`/api/instituciones/${qs}`, { method: "POST", body: JSON.stringify(data) });
   },
+  updateInstitucion: (id: number, data: InstitucionCreate) =>
+    request<Institucion>(`/api/instituciones/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteInstitucion: (id: number) => request<void>(`/api/instituciones/${id}`, { method: "DELETE" }),
 
   // ── Deportes ─────────────────────────────────────────────────────────────────

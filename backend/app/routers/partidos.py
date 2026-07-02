@@ -17,6 +17,7 @@ from app.core.deps import require_admin, require_admin_or_arbitro
 from app.models.usuarios import Usuario
 from app.services.competition import apply_result_change, recalculate_atleta_stats
 from app.services.email import send_email
+from app.services.notify import correo_institucion
 
 router = APIRouter()
 
@@ -157,6 +158,15 @@ def _crear_notificaciones_reprogramacion(
     visit_nombre = p.visitante.club_equipo.nombre_equipo if p.visitante and p.visitante.club_equipo else "Visitante"
     fecha_str = p.fecha_hora.strftime("%d/%m/%Y %H:%M") if p.fecha_hora else "por confirmar"
     mensaje = f"{local_nombre} vs {visit_nombre} ha sido reprogramado para el {fecha_str}. Motivo: {motivo}"
+    cuerpo_email = (
+        f"Hola,\n\n"
+        f"Les informamos que uno de sus partidos fue reprogramado:\n"
+        f"  • Partido: {local_nombre} vs {visit_nombre}\n"
+        f"  • Nueva fecha: {fecha_str}\n"
+        f"  • Motivo: {motivo}\n\n"
+        f"Les recomendamos revisar el calendario actualizado en el portal.\n\n"
+        f"— El equipo de Olimpiadas Perú"
+    )
 
     for inst_id in instituciones:
         db.add(Notificacion(
@@ -167,12 +177,8 @@ def _crear_notificaciones_reprogramacion(
         ))
         # El mismo aviso, pero por correo. Se envía en segundo plano y si falla
         # no afecta a la reprogramación del partido.
-        correo = (
-            db.query(Usuario.correo)
-            .filter(Usuario.institucion_id == inst_id, Usuario.rol == "institucion")
-            .scalar()
-        )
-        background.add_task(send_email, correo, "Partido reprogramado — Olimpiadas Perú", mensaje)
+        correo = correo_institucion(db, inst_id)
+        background.add_task(send_email, correo, "Partido reprogramado — Olimpiadas Perú", cuerpo_email)
 
 
 @router.patch("/{id}/resultado", response_model=PartidoOut)

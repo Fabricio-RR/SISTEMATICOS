@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -6,12 +6,15 @@ from app.database import get_db
 from app.models.torneos import Torneo
 from app.models.deportes import Deporte
 from app.models.inscripciones import Inscripcion
+from app.models.instituciones import Institucion
 from app.models.fixture import Fixture
+from app.models.partidos import Partido
 from app.core.deps import require_admin
 from app.core.texto import normalizar
 from app.models.usuarios import Usuario
 from app.schemas.torneos import TorneoCreate, TorneoUpdate, TorneoOut, TRANSICIONES
 from app.services.competition import assert_transition_allowed
+from app.services.notify import notify_institucion
 
 router = APIRouter()
 
@@ -30,8 +33,9 @@ def get_by_id(id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=TorneoOut, status_code=status.HTTP_201_CREATED)
-def create(data: TorneoCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
-    if not db.query(Deporte).filter(Deporte.id == data.deporte_id, Deporte.esta_activo == True).first():
+def create(data: TorneoCreate, background: BackgroundTasks, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    deporte = db.query(Deporte).filter(Deporte.id == data.deporte_id, Deporte.esta_activo == True).first()
+    if not deporte:
         raise HTTPException(status_code=404, detail="Deporte no encontrado o inactivo")
 
     # Evitar torneos duplicados aunque el nombre esté escrito distinto
@@ -59,6 +63,29 @@ def create(data: TorneoCreate, db: Session = Depends(get_db), _: Usuario = Depen
             detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
         )
     db.refresh(torneo)
+
+    # El torneo nace en "inscripcion_abierta": avisamos a todas las instituciones
+    # activas para que puedan inscribir sus equipos (in-app + correo).
+    instituciones = db.query(Institucion.id).filter(Institucion.estado == "activo").all()
+    for (inst_id,) in instituciones:
+        notify_institucion(
+            db,
+            background,
+            inst_id,
+            "Nuevo torneo disponible",
+            f"Se abrió el torneo {torneo.nombre} de {deporte.nombre}. ¡Ya pueden inscribir sus equipos!",
+            cuerpo_email=(
+                f"¡Hola!\n\n"
+                f"Tenemos un nuevo torneo para ustedes:\n"
+                f"  • {torneo.nombre} ({deporte.nombre}, temporada {torneo.temporada})\n\n"
+                f"Las inscripciones ya están abiertas. Ingresen al portal para inscribir a sus "
+                f"equipos y competir.\n\n"
+                f"¡Los esperamos!\n\n— El equipo de Olimpiadas Perú"
+            ),
+        )
+    if instituciones:
+        db.commit()
+
     return torneo
 
 
@@ -112,8 +139,50 @@ def update(id: int, data: TorneoUpdate, db: Session = Depends(get_db), _: Usuari
     return torneo
 
 
+def _determinar_campeon(torneo_id: int, db: Session) -> Inscripcion | None:
+    """Campeón del torneo: en eliminatoria, el ganador de la Final; en liga, el
+    líder de la tabla de posiciones (mismos criterios que /estadisticas/tabla)."""
+    final = (
+        db.query(Fixture)
+        .filter(Fixture.torneo_id == torneo_id, Fixture.nombre_fase == "Final")
+        .first()
+    )
+    if final:
+        partido = (
+            db.query(Partido)
+            .filter(Partido.fixture_id == final.id, Partido.estado == "finalizado")
+            .first()
+        )
+        if (
+            partido
+            and partido.resultado_local is not None
+            and partido.resultado_visitante is not None
+            and partido.resultado_local != partido.resultado_visitante
+        ):
+            ganador_id = (
+                partido.inscripcion_local_id
+                if partido.resultado_local > partido.resultado_visitante
+                else partido.inscripcion_visitante_id
+            )
+            return db.get(Inscripcion, ganador_id)
+
+    diferencia = Inscripcion.goles_a_favor - Inscripcion.goles_en_contra
+    return (
+        db.query(Inscripcion)
+        .filter(Inscripcion.torneo_id == torneo_id, Inscripcion.estado == "aprobado")
+        .order_by(
+            Inscripcion.puntos.desc(),
+            diferencia.desc(),
+            Inscripcion.goles_a_favor.desc(),
+            Inscripcion.partidos_ganados.desc(),
+            Inscripcion.id.asc(),
+        )
+        .first()
+    )
+
+
 @router.patch("/{id}/avanzar", response_model=TorneoOut)
-def avanzar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+def avanzar(id: int, background: BackgroundTasks, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     torneo = db.query(Torneo).filter(Torneo.id == id).first()
     if not torneo:
         raise HTTPException(status_code=404, detail="Torneo no encontrado")
@@ -125,6 +194,27 @@ def avanzar(id: int, db: Session = Depends(get_db), _: Usuario = Depends(require
         )
     assert_transition_allowed(torneo, siguiente, db)
     torneo.estado = siguiente
+
+    # Al finalizar el torneo, felicitamos al campeón (in-app + correo).
+    if siguiente == "finalizado":
+        campeon = _determinar_campeon(id, db)
+        if campeon and campeon.club_equipo:
+            equipo = campeon.club_equipo.nombre_equipo
+            notify_institucion(
+                db,
+                background,
+                campeon.club_equipo.institucion_id,
+                "¡Campeones del torneo!",
+                f"¡Felicidades! {equipo} se coronó campeón de {torneo.nombre}.",
+                cuerpo_email=(
+                    f"¡FELICIDADES, CAMPEONES!\n\n"
+                    f"Su equipo {equipo} se coronó campeón del torneo {torneo.nombre}. "
+                    f"Fue una gran competencia y se lo ganaron en la cancha.\n\n"
+                    f"¡Gracias por ser parte de Olimpiadas Perú y los esperamos en el próximo torneo!\n\n"
+                    f"— El equipo de Olimpiadas Perú"
+                ),
+            )
+
     db.commit()
     db.refresh(torneo)
     return torneo

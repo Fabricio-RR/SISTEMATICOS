@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -6,6 +6,7 @@ from app.models.fixture import Fixture
 from app.models.partidos import Partido
 from app.models.inscripciones import Inscripcion
 from app.models.torneos import Torneo
+from app.services.notify import notify_institucion
 from app.schemas.fixture import FixtureOut, GenerarFixtureRequest, FaseEliminatoriaRequest, SiguienteFaseRequest
 from app.schemas.partidos import PartidoOut
 from app.core.deps import require_admin
@@ -211,6 +212,7 @@ def generar_fase_eliminatoria(
 @router.post("/siguiente-fase", response_model=FixtureOut, status_code=status.HTTP_201_CREATED)
 def generar_siguiente_fase(
     data: SiguienteFaseRequest,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_admin),
 ):
@@ -252,6 +254,27 @@ def generar_siguiente_fase(
             inscripcion_visitante_id=ganadores[n - 1 - i],
             ronda=nombre_siguiente,
         ))
+
+    # Avisar a los equipos que avanzaron a la siguiente fase (in-app + correo).
+    torneo = db.get(Torneo, data.torneo_id)
+    torneo_nombre = torneo.nombre if torneo else "el torneo"
+    for insc_id in ganadores:
+        insc = db.get(Inscripcion, insc_id)
+        if insc and insc.club_equipo:
+            equipo = insc.club_equipo.nombre_equipo
+            notify_institucion(
+                db,
+                background,
+                insc.club_equipo.institucion_id,
+                "¡Avanzaste de fase!",
+                f"{equipo} avanzó a {nombre_siguiente} en {torneo_nombre}. ¡Felicidades!",
+                cuerpo_email=(
+                    f"¡Felicidades!\n\n"
+                    f"Su equipo {equipo} ganó y avanzó a {nombre_siguiente} en el torneo "
+                    f"{torneo_nombre}. ¡Sigan así!\n\n"
+                    f"Pronto podrán ver el nuevo cruce en el portal.\n\n— El equipo de Olimpiadas Perú"
+                ),
+            )
 
     db.commit()
     db.refresh(next_fix)

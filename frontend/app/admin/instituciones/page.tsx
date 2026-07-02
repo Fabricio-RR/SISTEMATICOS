@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { Building2, Plus, Trash2, Search } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Building2, Plus, Trash2, Search, MoreVertical, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useInstituciones } from "@/lib/hooks";
@@ -24,6 +24,8 @@ export default function InstitucionesPage() {
   const [busqueda, setBusqueda] = useState("");
   const [error, setError] = useState("");
   const [modalAbierto, setModalAbierto] = useState(false);
+  // Institución que se está editando; null = modo creación.
+  const [editando, setEditando] = useState<Institucion | null>(null);
   const [form, setForm] = useState({
     nombre: "", nombre_corto: "", ciudad: "", estado: "activo",
     contacto: "", categoria: "" as CategoriaInstitucion | "",
@@ -31,10 +33,26 @@ export default function InstitucionesPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorForm, setErrorForm] = useState("");
   const [eliminando, setEliminando] = useState<number | null>(null);
+  // Fila cuyo menú de acciones está abierto (solo uno a la vez).
+  const [menuAbierto, setMenuAbierto] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   // Confirmación explícita para crear pese a un parecido (override).
   const [confirmarParecido, setConfirmarParecido] = useState(false);
 
-  const { similares, exacto } = useDuplicadosInstitucion(form.nombre, form.nombre_corto);
+  // Al editar, excluimos la propia institución de la detección de duplicados.
+  const { similares, exacto } = useDuplicadosInstitucion(form.nombre, form.nombre_corto, editando?.id);
+
+  // Cierra el menú de acciones al hacer click fuera.
+  useEffect(() => {
+    if (menuAbierto === null) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuAbierto(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuAbierto]);
   const hayParecido = similares.length > 0 && !exacto;
 
   const errorMostrado = error || (institucionesQ.isError ? "No se pudo cargar las instituciones. Verifica que el backend esté activo." : "");
@@ -45,12 +63,35 @@ export default function InstitucionesPage() {
     setErrorForm("");
   }
 
+  function abrirCrear() {
+    setEditando(null);
+    resetForm();
+    setModalAbierto(true);
+  }
+
+  function abrirEditar(inst: Institucion) {
+    setMenuAbierto(null);
+    setEditando(inst);
+    setForm({
+      nombre: inst.nombre,
+      nombre_corto: inst.nombre_corto,
+      ciudad: inst.ciudad,
+      estado: inst.estado,
+      contacto: inst.contacto ?? "",
+      categoria: inst.categoria ?? "",
+    });
+    setConfirmarParecido(false);
+    setErrorForm("");
+    setModalAbierto(true);
+  }
+
   function cerrarModal() {
     setModalAbierto(false);
+    setEditando(null);
     resetForm();
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (form.nombre.length > 200) {
       setErrorForm("El nombre no puede tener más de 200 caracteres.");
@@ -76,11 +117,13 @@ export default function InstitucionesPage() {
     setGuardando(true);
     setErrorForm("");
     try {
-      // Si hay parecidos y el admin confirmó, se envía el override al backend.
-      await api.createInstitucion(
-        { ...form, categoria: form.categoria || undefined },
-        { permitirDuplicado: hayParecido && confirmarParecido },
-      );
+      const payload = { ...form, categoria: form.categoria || undefined };
+      if (editando) {
+        await api.updateInstitucion(editando.id, payload);
+      } else {
+        // Si hay parecidos y el admin confirmó, se envía el override al backend.
+        await api.createInstitucion(payload, { permitirDuplicado: hayParecido && confirmarParecido });
+      }
       cerrarModal();
       await recargar();
     } catch (err) {
@@ -91,6 +134,7 @@ export default function InstitucionesPage() {
   }
 
   async function handleDelete(id: number) {
+    setMenuAbierto(null);
     setEliminando(id);
     setError("");
     try {
@@ -119,7 +163,7 @@ export default function InstitucionesPage() {
         title="Instituciones"
         subtitle="Gestión de colegios, universidades y clubes deportivos."
         actions={
-          <Button onClick={() => setModalAbierto(true)}>
+          <Button onClick={abrirCrear}>
             <Plus className="w-4 h-4" />Nueva institución
           </Button>
         }
@@ -193,14 +237,41 @@ export default function InstitucionesPage() {
                   <Badge tone={inst.estado === "activo" ? "success" : "neutral"} className="capitalize">{inst.estado}</Badge>
                 </Td>
                 <Td className="text-center">
-                  <button
-                    onClick={() => handleDelete(inst.id)}
-                    disabled={eliminando === inst.id}
-                    aria-label={`Eliminar ${inst.nombre}`}
-                    className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="relative inline-block" ref={menuAbierto === inst.id ? menuRef : undefined}>
+                    <button
+                      onClick={() => setMenuAbierto((v) => (v === inst.id ? null : inst.id))}
+                      disabled={eliminando === inst.id}
+                      aria-label={`Acciones para ${inst.nombre}`}
+                      aria-haspopup="menu"
+                      aria-expanded={menuAbierto === inst.id}
+                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                    {menuAbierto === inst.id && (
+                      <div
+                        role="menu"
+                        className="absolute right-0 top-full z-50 mt-1 w-40 rounded-card border border-slate-100 bg-white py-1 text-left shadow-pop"
+                      >
+                        <button
+                          role="menuitem"
+                          onClick={() => abrirEditar(inst)}
+                          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Editar
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => handleDelete(inst.id)}
+                          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Eliminar
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </Td>
               </Tr>
             ))}
@@ -218,11 +289,11 @@ export default function InstitucionesPage() {
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50">
               <Building2 className="h-4 w-4 text-brand-600" />
             </span>
-            Nueva institución
+            {editando ? "Editar institución" : "Nueva institución"}
           </span>
         }
       >
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Nombre completo" required>
             <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required maxLength={200} placeholder="Ej. Universidad de Lima" />
           </Field>
@@ -253,8 +324,8 @@ export default function InstitucionesPage() {
           {/* Aviso de posibles duplicados en vivo */}
           <AvisoDuplicados similares={similares} />
 
-          {/* Override: solo cuando hay parecidos (no exactos) */}
-          {hayParecido && (
+          {/* Override: solo al crear y cuando hay parecidos (no exactos) */}
+          {!editando && hayParecido && (
             <label className="flex items-start gap-2 text-sm text-slate-600">
               <input
                 type="checkbox"
@@ -270,8 +341,8 @@ export default function InstitucionesPage() {
 
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={cerrarModal}>Cancelar</Button>
-            <Button type="submit" className="flex-1" loading={guardando} disabled={!!exacto || (hayParecido && !confirmarParecido)}>
-              {guardando ? "Guardando..." : "Crear"}
+            <Button type="submit" className="flex-1" loading={guardando} disabled={!!exacto || (!editando && hayParecido && !confirmarParecido)}>
+              {guardando ? "Guardando..." : editando ? "Guardar cambios" : "Crear"}
             </Button>
           </div>
         </form>

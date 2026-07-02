@@ -14,6 +14,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.models.instituciones import Institucion
 from app.models.notificaciones import Notificacion
 from app.models.usuarios import Usuario
 from app.services.email import send_email
@@ -27,9 +28,17 @@ def asunto(titulo: str) -> str:
 
 
 def correo_institucion(db: Session, institucion_id: int | None) -> str | None:
-    """Correo con el que se registró la institución (su usuario), para avisarle."""
+    """Correo al que avisar a la institución.
+
+    Prioriza el `contacto` de la institución (si es un correo), que es el que el
+    admin configura explícitamente para recibir avisos; si no hay, cae al correo
+    de login de su usuario.
+    """
     if not institucion_id:
         return None
+    inst = db.get(Institucion, institucion_id)
+    if inst and inst.contacto and "@" in inst.contacto:
+        return inst.contacto
     user = (
         db.query(Usuario)
         .filter(Usuario.institucion_id == institucion_id, Usuario.rol == "institucion")
