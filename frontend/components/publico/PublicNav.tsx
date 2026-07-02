@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard, ChevronDown } from "lucide-react";
 import Logo from "@/components/Logo";
 
 const NAV_LINKS = [
@@ -19,6 +19,22 @@ const NAV_LINKS = [
 export default function PublicNav() {
   const pathname = usePathname();
   const [abierto, setAbierto] = useState(false);
+  const [sesion, setSesion] = useState<{ nombre: string; rol: string } | null>(null);
+  const [menuUsuario, setMenuUsuario] = useState(false);
+
+  useEffect(() => {
+    const nombre = localStorage.getItem("nombre");
+    const rol = localStorage.getItem("rol");
+    if (nombre && rol) setSesion({ nombre, rol });
+  }, []);
+
+  const cerrarSesion = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("rol");
+    localStorage.removeItem("nombre");
+    setSesion(null);
+    setMenuUsuario(false);
+  };
 
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur">
@@ -52,12 +68,50 @@ export default function PublicNav() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className="hidden rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 sm:block"
-          >
-            Iniciar Sesión
-          </Link>
+          {sesion ? (
+            <div className="relative hidden sm:block">
+              <button
+                onClick={() => setMenuUsuario(o => !o)}
+                className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-200"
+              >
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-black text-white">
+                  {sesion.nombre.charAt(0).toUpperCase()}
+                </div>
+                <span className="max-w-[100px] truncate">{sesion.nombre}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+              </button>
+              {menuUsuario && (
+                <div className="absolute right-0 mt-2 w-52 rounded-xl border border-slate-100 bg-white py-1.5 shadow-lg z-50">
+                  <div className="border-b border-slate-50 px-3 py-2 mb-1">
+                    <p className="truncate text-xs font-bold text-slate-900">{sesion.nombre}</p>
+                    <p className="text-xs text-slate-400">{sesion.rol === "admin" ? "Administrador" : "Institución"}</p>
+                  </div>
+                  <Link
+                    href={sesion.rol === "admin" ? "/admin" : "/institucion"}
+                    onClick={() => setMenuUsuario(false)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    <LayoutDashboard className="h-4 w-4 text-slate-400" />
+                    Ir al panel
+                  </Link>
+                  <button
+                    onClick={cerrarSesion}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="hidden rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 sm:block"
+            >
+              Iniciar Sesión
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => setAbierto((v) => !v)}
@@ -91,13 +145,35 @@ export default function PublicNav() {
                 </Link>
               );
             })}
-            <Link
-              href="/login"
-              onClick={() => setAbierto(false)}
-              className="mt-1 rounded-lg bg-red-600 px-4 py-2.5 text-center text-sm font-semibold text-white"
-            >
-              Iniciar Sesión
-            </Link>
+            {sesion ? (
+              <>
+                <Link
+                  href={sesion.rol === "admin" ? "/admin" : "/institucion"}
+                  onClick={() => setAbierto(false)}
+                  className="mt-1 flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800"
+                >
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-black text-white">
+                    {sesion.nombre.charAt(0).toUpperCase()}
+                  </div>
+                  {sesion.nombre}
+                </Link>
+                <button
+                  onClick={() => { cerrarSesion(); setAbierto(false); }}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Cerrar sesión
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setAbierto(false)}
+                className="mt-1 rounded-lg bg-red-600 px-4 py-2.5 text-center text-sm font-semibold text-white"
+              >
+                Iniciar Sesión
+              </Link>
+            )}
           </div>
         </div>
       )}
