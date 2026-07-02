@@ -10,7 +10,7 @@ from app.models.fixture import Fixture
 from app.core.deps import require_admin
 from app.core.texto import normalizar
 from app.models.usuarios import Usuario
-from app.schemas.torneos import TorneoCreate, TorneoOut, TRANSICIONES
+from app.schemas.torneos import TorneoCreate, TorneoUpdate, TorneoOut, TRANSICIONES
 from app.services.competition import assert_transition_allowed
 
 router = APIRouter()
@@ -50,6 +50,56 @@ def create(data: TorneoCreate, db: Session = Depends(get_db), _: Usuario = Depen
 
     torneo = Torneo(**data.model_dump())
     db.add(torneo)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
+        )
+    db.refresh(torneo)
+    return torneo
+
+
+@router.patch("/{id}", response_model=TorneoOut)
+def update(id: int, data: TorneoUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    """Edita datos del torneo (nombre, formato, temporada). No cambia el deporte ni el estado."""
+    torneo = db.query(Torneo).filter(Torneo.id == id).first()
+    if not torneo:
+        raise HTTPException(status_code=404, detail="Torneo no encontrado")
+
+    cambios = data.model_dump(exclude_unset=True)
+    if not cambios:
+        return torneo
+
+    # Cambiar el formato con un fixture ya generado corrompería el torneo
+    if "formato" in cambios and cambios["formato"] != torneo.formato:
+        if db.query(Fixture).filter(Fixture.torneo_id == id).first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No se puede cambiar el formato de un torneo con fixture generado",
+            )
+
+    # Revalidar duplicado (mismo deporte + temporada + nombre normalizado)
+    nuevo_nombre = cambios.get("nombre", torneo.nombre)
+    nueva_temporada = cambios.get("temporada", torneo.temporada)
+    objetivo = normalizar(nuevo_nombre)
+    temporada_norm = normalizar(nueva_temporada)
+    existentes = db.query(Torneo).filter(
+        Torneo.deporte_id == torneo.deporte_id, Torneo.id != id
+    ).all()
+    if any(
+        normalizar(t.nombre) == objetivo and normalizar(t.temporada) == temporada_norm
+        for t in existentes
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe un torneo con ese nombre para el deporte y la temporada indicados",
+        )
+
+    for campo, valor in cambios.items():
+        setattr(torneo, campo, valor)
     try:
         db.commit()
     except IntegrityError:

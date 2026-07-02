@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.noticias import Noticia
-from app.schemas.noticias import NoticiaCreate, NoticiaOut
+from app.schemas.noticias import NoticiaCreate, NoticiaUpdate, NoticiaOut
 from app.core.deps import require_admin
 from app.models.usuarios import Usuario
 
@@ -24,6 +24,18 @@ def get_all_admin(db: Session = Depends(get_db), _: Usuario = Depends(require_ad
 def create(data: NoticiaCreate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
     noticia = Noticia(**data.model_dump())
     db.add(noticia)
+    db.commit()
+    db.refresh(noticia)
+    return noticia
+
+
+@router.patch("/{id}", response_model=NoticiaOut)
+def update(id: int, data: NoticiaUpdate, db: Session = Depends(get_db), _: Usuario = Depends(require_admin)):
+    noticia = db.query(Noticia).filter(Noticia.id == id).first()
+    if not noticia:
+        raise HTTPException(status_code=404, detail="Noticia no encontrada")
+    for campo, valor in data.model_dump(exclude_unset=True).items():
+        setattr(noticia, campo, valor)
     db.commit()
     db.refresh(noticia)
     return noticia

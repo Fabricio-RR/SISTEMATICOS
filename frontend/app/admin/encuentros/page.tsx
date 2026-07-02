@@ -3,7 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Calendar, RefreshCw, AlertCircle, RotateCcw, Pencil, X, Plus, Trash2, ClipboardList, Save, ChevronDown,
-  MapPin, AlertTriangle, Search, Clock, CalendarClock, ClipboardCheck, Trophy, CalendarOff
+  MapPin, AlertTriangle, Search, Clock, CalendarClock, ClipboardCheck, Trophy, CalendarOff,
+  LayoutList, GitFork
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Partido, Torneo, Deporte, EstadoPartido, PartidoUpdate, Sede, AtletaJugador, EventoPartidoCreate } from "@/types/api";
@@ -36,8 +37,8 @@ const scoreInputCls =
 type EditModal = { partido: Partido; form: PartidoUpdate; fechaOriginal: string | null };
 type CorreccionModal = { partido: Partido; local: string; visitante: string };
 type RegistroModal = { partido: Partido; local: string; visitante: string };
+type VistaTipo = "lista" | "mapa";
 
-/** Formatea la fecha del partido o indica que aún no tiene programación. */
 function fmtFecha(iso: string | null): string {
   if (!iso) return "Por programar";
   return new Date(iso).toLocaleString("es-PE", {
@@ -45,7 +46,100 @@ function fmtFecha(iso: string | null): string {
   });
 }
 
-/** Fila de un partido: marcador tipo scoreboard, estado y acciones según la etapa. */
+function PartidoBracket({ p, onRegistrar, onCorregir, onEditar }: {
+  p: Partido;
+  onRegistrar: () => void;
+  onCorregir: () => void;
+  onEditar: () => void;
+}) {
+  const jugado = p.estado !== "programado";
+  const rl = p.resultado_local ?? (jugado ? 0 : "-");
+  const rv = p.resultado_visitante ?? (jugado ? 0 : "-");
+  
+  const isFinal = p.ronda?.toLowerCase().includes("final") && !p.ronda?.toLowerCase().includes("cuarto") && !p.ronda?.toLowerCase().includes("octavo");
+  const isPending = p.estado === "programado" && !p.fecha_hora;
+
+  const cardCls = isFinal 
+    ? "relative bg-white border-[3px] border-slate-900 rounded-xl w-72 shadow-[6px_6px_0px_0px_#0f172a] flex flex-col overflow-hidden z-10" 
+    : isPending
+    ? "relative bg-white border-[3px] border-red-500 rounded-xl w-64 shadow-[6px_6px_0px_0px_#ef4444] flex flex-col overflow-hidden z-10"
+    : "relative bg-white border-[3px] border-slate-900 rounded-xl w-64 shadow-[4px_4px_0px_0px_#0f172a] flex flex-col overflow-hidden z-10";
+
+  return (
+    <div className={cardCls}>
+      <div className="p-3 flex-1 flex flex-col justify-center gap-2">
+        {isFinal && (
+          <div className="text-center pb-2 mb-2 border-b-2 border-slate-100 flex flex-col items-center">
+            <Trophy className="w-6 h-6 text-red-600 mb-1" />
+            <span className="font-black text-slate-900 uppercase tracking-wide text-sm">COPA BICENTENARIO</span>
+          </div>
+        )}
+
+        <div className="flex justify-between items-center bg-slate-50/50 p-1.5 rounded-lg border border-slate-100">
+          <span className={`font-bold text-xs truncate max-w-[140px] uppercase ${isPending ? 'text-slate-900 flex items-center gap-2' : 'text-slate-900'}`}>
+            {isPending && <span className="w-2 h-2 rounded-full bg-red-500 block" />}
+            {p.local_nombre || "POR DEFINIR"}
+          </span>
+          <span className="bg-slate-900 text-white font-black text-xs px-2 py-1 rounded shadow-sm">
+            {rl}
+          </span>
+        </div>
+
+        {isFinal && <div className="text-center text-red-600 font-black text-sm my-1">VS</div>}
+
+        <div className="flex justify-between items-center bg-slate-50/50 p-1.5 rounded-lg border border-slate-100">
+          <span className="font-bold text-slate-500 text-xs truncate max-w-[140px] uppercase">
+            {p.visitante_nombre || "POR DEFINIR"}
+          </span>
+          <span className="bg-slate-200 text-slate-600 font-black text-xs px-2 py-1 rounded shadow-sm">
+            {rv}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-2 bg-slate-50 border-t-2 border-slate-200 flex justify-between items-center">
+        {p.estado === "programado" ? (
+          <div className="w-full">
+            {p.fecha_hora ? (
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded">
+                  {fmtFecha(p.fecha_hora)}
+                </span>
+                <button onClick={onRegistrar} className="bg-slate-900 text-white text-[10px] font-bold px-2 py-1.5 rounded hover:bg-slate-800 flex items-center gap-1">
+                  <ClipboardCheck className="w-3 h-3" /> RESULTADO
+                </button>
+              </div>
+            ) : (
+              <button onClick={onEditar} className="w-full bg-slate-900 text-white text-xs font-black uppercase py-2 rounded hover:bg-slate-800 transition shadow-[2px_2px_0px_0px_#000]">
+                PROGRAMAR FECHA
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+              <Clock className="w-3 h-3" /> FINALIZADO
+            </span>
+            <div className="flex gap-1">
+              <button onClick={onCorregir} className="p-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200" title="Corregir">
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {isFinal && !p.sede_nombre && (
+        <div className="p-2 bg-white">
+          <button onClick={onEditar} className="w-full bg-red-600 text-white text-xs font-black uppercase py-2 rounded hover:bg-red-700 transition shadow-[2px_2px_0px_0px_#7f1d1d]">
+            DEFINIR SEDE FINAL
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FilaPartido({ p, onRegistrar, onCorregir, onEditar }: {
   p: Partido;
   onRegistrar: () => void;
@@ -66,7 +160,6 @@ function FilaPartido({ p, onRegistrar, onCorregir, onEditar }: {
   return (
     <div className="px-4 sm:px-5 py-3 hover:bg-slate-50/60 transition-colors">
       <div className="flex items-center gap-3">
-        {/* Marcador */}
         <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
           <span className={`flex-1 text-right text-sm truncate ${nombreCls(ganaLocal, jugado && ganaVisita)}`}>
             {p.local_nombre}
@@ -85,7 +178,6 @@ function FilaPartido({ p, onRegistrar, onCorregir, onEditar }: {
           </span>
         </div>
 
-        {/* Acciones */}
         <div className="shrink-0 flex items-center gap-1.5">
           {(p.estado === "programado" || p.estado === "en_curso") && (
             <button onClick={onRegistrar}
@@ -106,7 +198,6 @@ function FilaPartido({ p, onRegistrar, onCorregir, onEditar }: {
         </div>
       </div>
 
-      {/* Metadatos */}
       <div className="mt-1.5 flex items-center flex-wrap gap-x-2.5 gap-y-1 text-[11px]">
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold ${badge.cls}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />{ESTADO_LABEL[p.estado]}
@@ -133,6 +224,7 @@ function FilaPartido({ p, onRegistrar, onCorregir, onEditar }: {
 
 export default function EncuentrosPage() {
   const searchParams = useSearchParams();
+  const [vista, setVista] = useState<VistaTipo>("lista");
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [deportes, setDeportes] = useState<Deporte[]>([]);
@@ -152,7 +244,6 @@ export default function EncuentrosPage() {
   const [guardando, setGuardando] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
-  // Modal eventos (compartido entre correccion y registro)
   const [modalEventos, setModalEventos] = useState<EventoPartidoCreate[]>([]);
   const [atletasLocal, setAtletasLocal] = useState<AtletaJugador[]>([]);
   const [atletasVisitante, setAtletasVisitante] = useState<AtletaJugador[]>([]);
@@ -212,7 +303,6 @@ export default function EncuentrosPage() {
   function agregarEvento() {
     if (nuevoEvento.atletaId === 0) { alert("Por favor, selecciona un jugador."); return; }
     setModalEventos(prev => [...prev, { atleta_jugador_id: nuevoEvento.atletaId, tipo_evento: nuevoEvento.tipo, minuto: nuevoEvento.minuto ? Number(nuevoEvento.minuto) : null, descripcion: nuevoEvento.descripcion || null }]);
-    // Gol → incrementa marcador automáticamente en registro
     if (nuevoEvento.tipo === "gol" && registroModal) {
       if (nuevoEvento.equipoSelect === "local") setRegistroModal(m => m ? { ...m, local: String(Number(m.local || 0) + 1) } : null);
       else setRegistroModal(m => m ? { ...m, visitante: String(Number(m.visitante || 0) + 1) } : null);
@@ -222,7 +312,6 @@ export default function EncuentrosPage() {
 
   function eliminarEvento(index: number) {
     const ev = modalEventos[index];
-    // Gol → decrementa marcador automáticamente en registro
     if (ev.tipo_evento === "gol" && registroModal) {
       const esLocal = atletasLocal.some(a => a.id === ev.atleta_jugador_id);
       if (esLocal) setRegistroModal(m => m ? { ...m, local: String(Math.max(0, Number(m.local || 0) - 1)) } : null);
@@ -299,7 +388,6 @@ export default function EncuentrosPage() {
 
   const torneosFiltrados = deporteFiltro ? torneos.filter(t => t.deporte_id === deporteFiltro) : torneos;
 
-  // Partidos de torneos no suspendidos (base para conteos y filtros del cliente)
   const torneosSuspendidosIds = new Set(torneos.filter(t => t.estado === "suspendido").map(t => t.id));
   const partidosBase = partidos.filter(p => {
     const torneo = torneos.find(t => t.nombre === p.torneo_nombre);
@@ -328,16 +416,35 @@ export default function EncuentrosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Administración</p>
           <h1 className="font-display text-2xl font-bold text-slate-900 mt-1">Encuentros</h1>
           <p className="text-sm text-slate-400 mt-0.5">Programación, registro de resultados y seguimiento de partidos.</p>
         </div>
-        <button onClick={cargar} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-          <RefreshCw className={`w-4 h-4 ${cargando ? "animate-spin" : ""}`} />Actualizar
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setVista("lista")}
+              className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md text-sm font-semibold transition ${
+                vista === "lista" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <LayoutList className="w-4 h-4" /> Lista
+            </button>
+            <button
+              onClick={() => setVista("mapa")}
+              className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md text-sm font-semibold transition ${
+                vista === "mapa" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <GitFork className="w-4 h-4" /> Mapa
+            </button>
+          </div>
+          <button onClick={cargar} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+            <RefreshCw className={`w-4 h-4 ${cargando ? "animate-spin" : ""}`} />Actualizar
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -346,7 +453,6 @@ export default function EncuentrosPage() {
         </div>
       )}
 
-      {/* Resumen + filtros por estado */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {chips.map(c => {
           const sel = estadoFiltro === c.key;
@@ -360,7 +466,6 @@ export default function EncuentrosPage() {
         })}
       </div>
 
-      {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-100 rounded-xl px-4 py-3 shadow-sm">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
@@ -386,7 +491,6 @@ export default function EncuentrosPage() {
         {!cargando && <span className="ml-auto text-xs text-slate-400">{partidosFiltrados.length} encuentro{partidosFiltrados.length !== 1 ? "s" : ""}</span>}
       </div>
 
-      {/* Lista por torneo (accordion) → agrupada por ronda */}
       {cargando ? (
         <div className="flex items-center justify-center h-40 text-sm text-slate-400">Cargando...</div>
       ) : partidosFiltrados.length === 0 ? (
@@ -412,7 +516,6 @@ export default function EncuentrosPage() {
               const finCount = ps.filter(p => p.estado === "finalizado").length;
               const pct = ps.length ? Math.round((finCount / ps.length) * 100) : 0;
 
-              // Agrupar por ronda preservando el orden de aparición
               const porRonda = new Map<string, Partido[]>();
               for (const p of ps) {
                 const k = p.ronda ?? `Jornada ${p.jornada}`;
@@ -458,27 +561,66 @@ export default function EncuentrosPage() {
                   </button>
 
                   {abierto && (
-                    <div className="border-t border-slate-100">
-                      {Array.from(porRonda.entries()).map(([ronda, rps]) => (
-                        <div key={ronda}>
-                          <div className="flex items-center gap-2 px-5 pt-3 pb-1 bg-slate-50/40">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">{ronda}</span>
-                            <div className="flex-1 h-px bg-slate-100" />
-                            <span className="text-[10px] text-slate-300 shrink-0">{rps.length}</span>
-                          </div>
-                          <div className="divide-y divide-slate-50">
-                            {rps.map(p => (
-                              <FilaPartido
-                                key={p.id}
-                                p={p}
-                                onRegistrar={() => abrirRegistroModal(p)}
-                                onCorregir={() => abrirCorreccionModal(p)}
-                                onEditar={() => { setErrorEdicion(""); setEditModal({ partido: p, form: { sede_id: p.sede_id ?? undefined, fecha_hora: p.fecha_hora ?? undefined, estado: p.estado }, fechaOriginal: p.fecha_hora }); }}
-                              />
-                            ))}
-                          </div>
+                    <div className="border-t border-slate-100 bg-slate-50/30">
+                      
+                      {vista === "lista" ? (
+                        <div>
+                          {Array.from(porRonda.entries()).map(([ronda, rps]) => (
+                            <div key={ronda}>
+                              <div className="flex items-center gap-2 px-5 pt-3 pb-1 bg-slate-50/80">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 shrink-0">{ronda}</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                                <span className="text-[10px] text-slate-400 shrink-0">{rps.length}</span>
+                              </div>
+                              <div className="divide-y divide-slate-100">
+                                {rps.map(p => (
+                                  <FilaPartido
+                                    key={p.id}
+                                    p={p}
+                                    onRegistrar={() => abrirRegistroModal(p)}
+                                    onCorregir={() => abrirCorreccionModal(p)}
+                                    onEditar={() => { setErrorEdicion(""); setEditModal({ partido: p, form: { sede_id: p.sede_id ?? undefined, fecha_hora: p.fecha_hora ?? undefined, estado: p.estado }, fechaOriginal: p.fecha_hora }); }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : (
+                        <div className="overflow-x-auto p-8 relative flex gap-12 bg-slate-50/50 min-h-[500px]">
+                          <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }}></div>
+                          
+                          {Array.from(porRonda.entries()).map(([ronda, rps], colIndex, arr) => {
+                            const isLast = colIndex === arr.length - 1;
+                            return (
+                              <div key={ronda} className="relative flex flex-col items-center flex-shrink-0 gap-8 min-w-[260px] z-10">
+                                <div className="bg-slate-900 text-white text-xs font-black uppercase px-4 py-1.5 rounded-full shadow-sm mb-2">
+                                  {ronda}
+                                </div>
+                                
+                                <div className="flex flex-col gap-10 flex-1 justify-around w-full items-center">
+                                  {rps.map((p, i) => (
+                                    <div key={p.id} className="relative w-full flex justify-center group">
+                                      <PartidoBracket
+                                        p={p}
+                                        onRegistrar={() => abrirRegistroModal(p)}
+                                        onCorregir={() => abrirCorreccionModal(p)}
+                                        onEditar={() => { setErrorEdicion(""); setEditModal({ partido: p, form: { sede_id: p.sede_id ?? undefined, fecha_hora: p.fecha_hora ?? undefined, estado: p.estado }, fechaOriginal: p.fecha_hora }); }}
+                                      />
+                                      {!isLast && (
+                                        <div className="hidden md:block absolute top-1/2 -right-6 w-6 border-t-[3px] border-r-[3px] border-slate-300 h-[calc(50%+20px)] rounded-tr-lg translate-y-[-50%] group-last:border-r-0 group-last:border-b-[3px] group-last:rounded-tr-none group-last:rounded-br-lg group-last:translate-y-[-100%]" />
+                                      )}
+                                      {colIndex !== 0 && (
+                                        <div className="hidden md:block absolute top-1/2 -left-6 w-6 border-t-[3px] border-slate-300 h-0" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -488,7 +630,7 @@ export default function EncuentrosPage() {
         );
       })()}
 
-      {/* Modal edición */}
+      {/* MODAL EDICIÓN */}
       {editModal && (() => {
         const fechaVal = editModal.form.fecha_hora ? editModal.form.fecha_hora.slice(0, 16) : "";
         const fechaOrig = editModal.fechaOriginal ? editModal.fechaOriginal.slice(0, 16) : "";
@@ -511,7 +653,6 @@ export default function EncuentrosPage() {
             <p className="text-xs text-slate-400 mb-4">Todos los campos son opcionales: completa lo que ya sepas del encuentro.</p>
 
             <div className="space-y-4">
-              {/* Fecha y hora */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   <Calendar className="w-3.5 h-3.5" /> Fecha y hora
@@ -531,7 +672,6 @@ export default function EncuentrosPage() {
                 )}
               </div>
 
-              {/* Motivo de reprogramación (solo si cambia una fecha ya fijada) */}
               {esReprog && (
                 <div>
                   <label className="block text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1.5">
@@ -551,7 +691,6 @@ export default function EncuentrosPage() {
                 </div>
               )}
 
-              {/* Sede */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   <MapPin className="w-3.5 h-3.5" /> Sede / Ubicación <span className="text-slate-300 normal-case font-normal tracking-normal">(opcional)</span>
@@ -567,7 +706,6 @@ export default function EncuentrosPage() {
                 <p className="mt-1 text-xs text-slate-400">Dónde se jugará el partido.</p>
               </div>
 
-              {/* Estado */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Estado</label>
                 <select
@@ -582,7 +720,6 @@ export default function EncuentrosPage() {
                 </p>
               </div>
 
-              {/* Historial de reprogramación previa */}
               {editModal.partido.reprogramado_en && editModal.partido.motivo_reprogramacion && (
                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500">
                   <p className="font-semibold text-slate-600 mb-0.5">Última reprogramación</p>
@@ -590,7 +727,6 @@ export default function EncuentrosPage() {
                 </div>
               )}
 
-              {/* Error en línea */}
               {errorEdicion && (
                 <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{errorEdicion}
@@ -609,7 +745,7 @@ export default function EncuentrosPage() {
         );
       })()}
 
-      {/* Modal corrección */}
+      {/* MODAL CORRECCIÓN */}
       {correccionModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden my-8">
@@ -732,14 +868,14 @@ export default function EncuentrosPage() {
         </div>
       )}
 
-      {/* Modal registro de resultado */}
+      {/* MODAL REGISTRO */}
       {registroModal && (() => {
         const esFut = esFutbolDelPartido(registroModal.partido);
         const golesL = modalEventos.filter(e => e.tipo_evento === "gol" && atletasLocal.some(a => a.id === e.atleta_jugador_id)).length;
         const golesV = modalEventos.filter(e => e.tipo_evento === "gol" && atletasVisitante.some(a => a.id === e.atleta_jugador_id)).length;
         const tiposEvento = esFut
           ? [
-              { key: "gol",              icon: "⚽", label: "Gol",     active: "bg-emerald-600 text-white border-emerald-600" },
+              { key: "gol",              icon: "⚽", label: "Gol",       active: "bg-emerald-600 text-white border-emerald-600" },
               { key: "tarjeta_amarilla", icon: "🟨", label: "T. Amarilla", active: "bg-amber-400 text-white border-amber-400" },
               { key: "tarjeta_roja",     icon: "🟥", label: "T. Roja", active: "bg-red-600 text-white border-red-600" },
             ]

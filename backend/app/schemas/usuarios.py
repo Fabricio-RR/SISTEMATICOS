@@ -41,6 +41,20 @@ class UsuarioCreate(BaseModel):
         return self
 
 
+class UsuarioUpdate(BaseModel):
+    """Edición parcial de un usuario por el admin (sin contraseña ni preguntas)."""
+    nombres: str | None = Field(default=None, min_length=2, max_length=50)
+    apellidos: str | None = Field(default=None, min_length=2, max_length=50)
+    correo: EmailStr | None = None
+    rol: Literal["institucion", "arbitro", "admin"] | None = None
+    institucion_id: int | None = None
+
+    @field_validator("nombres", "apellidos", mode="before")
+    @classmethod
+    def _trim(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+
 class UsuarioOut(BaseModel):
     id: int
     nombres: str

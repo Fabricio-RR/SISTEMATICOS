@@ -19,5 +19,39 @@ services:
       retries: 10
       start_period: 30s
 
+  # Backend FastAPI. Lee el .env de la raíz (DATABASE_URL con host "db", porque
+  # dentro de la red de Docker el contenedor llega a MySQL por el nombre del
+  # servicio "db"). Al arrancar corre migraciones + seed vía entrypoint.sh.
+  backend:
+    build: ./backend
+    container_name: olimpiadas_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app:z
+
+  # Interfaz visual de la base de datos (opcional). Abrir en http://localhost:8080
+  # para evitar instalar Workbench/DBeaver localmente.
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: olimpiadas_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+      UPLOAD_LIMIT: 50M
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   mysql_data:
